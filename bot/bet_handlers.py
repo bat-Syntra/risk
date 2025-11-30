@@ -2248,6 +2248,22 @@ async def callback_delete_bet(callback: types.CallbackQuery):
             if daily_stat.total_bets <= 0:
                 db.delete(daily_stat)
         
+        # Update User stats
+        user = db.query(User).filter(User.telegram_id == user_id).first()
+        if user:
+            user.total_bets = max(0, (user.total_bets or 0) - 1)
+            user.total_profit = (user.total_profit or 0) - (bet.expected_profit or 0)
+            
+            if bet.bet_type == "arbitrage":
+                user.arbitrage_bets = max(0, (user.arbitrage_bets or 0) - 1)
+                user.arbitrage_profit = (user.arbitrage_profit or 0) - (bet.expected_profit or 0)
+            elif bet.bet_type == "middle":
+                user.middle_bets = max(0, (user.middle_bets or 0) - 1)
+                user.middle_profit = (user.middle_profit or 0) - (bet.expected_profit or 0)
+            elif bet.bet_type == "good_ev":
+                user.good_ev_bets = max(0, (user.good_ev_bets or 0) - 1)
+                user.good_ev_profit = (user.good_ev_profit or 0) - (bet.expected_profit or 0)
+        
         # Delete the bet
         db.delete(bet)
         db.commit()

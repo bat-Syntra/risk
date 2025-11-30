@@ -1224,16 +1224,18 @@ async def view_call_details(callback: types.CallbackQuery):
         
         # Build casino buttons for quick links
         casino_buttons = []
+        from utils.odds_api_links import get_fallback_url
         
         # Extract casino names from outcomes to build buttons
         for outcome_data in outcomes[:2]:  # Max 2 casinos for arb/middle, 1 for good_ev
             casino_name = outcome_data.get('casino', 'Unknown')
             casino_lower = casino_name.lower()
             emoji = casino_emojis.get(casino_lower, '🎰')
+            casino_url = get_fallback_url(casino_name)
             
             casino_buttons.append(InlineKeyboardButton(
                 text=f"{emoji} {casino_name}",
-                callback_data=f"open_casino_{casino_lower.replace(' ', '_')}"
+                url=casino_url  # 🎯 FIX: Use url instead of callback_data
             ))
         
         # Build keyboard with NEW ORDER

@@ -33,6 +33,9 @@ class User(Base):
     email = Column(String(255))
     language = Column(String(10), default="en")  # User's preferred language (fr/en)
     
+    # Web session (for single device login)
+    web_session_id = Column(String(32), nullable=True)  # Current active web session
+    
     # Admin role (super_admin, admin, user)
     role = Column(String(20), default="user", index=True)
     

@@ -362,6 +362,8 @@ from bot import admin_request_handlers
 dp.include_router(admin_request_handlers.router)  # Admin request handlers (free access, ban with approval)
 dp.include_router(feedback_vouch_handler.router)  # MUST be before handlers for FSM to work!
 dp.include_router(handlers.router)
+# 🎯 IMPORTANT: bet_handlers_ev_middle MUST be EARLY to handle good_ev_bet_ and middle_bet_ callbacks
+dp.include_router(bet_handlers_ev_middle.router)
 dp.include_router(admin_handlers.router)
 
 # ML Stats Command (admin monitoring) - Put here for command priority
@@ -385,7 +387,7 @@ dp.include_router(bet_details_pro.router)
 dp.include_router(last_calls_pro.router)
 dp.include_router(learn_guide_pro.router)
 dp.include_router(bet_handlers.router)
-dp.include_router(bet_handlers_ev_middle.router)
+# bet_handlers_ev_middle.router moved to line 366 (earlier for priority)
 dp.include_router(middle_handlers.router)
 dp.include_router(middle_outcome_tracker.router)
 # feedback_vouch_handler.router moved to top (before handlers.router) for FSM priority
@@ -393,6 +395,28 @@ dp.include_router(admin_feedback_menu.router)  # Admin menu for feedbacks/vouche
 dp.include_router(intelligent_questionnaire.router)
 dp.include_router(daily_confirmation.router)
 dp.include_router(simulation_handler.router)
+
+# 🎯 CRITICAL: Register bet handlers DIRECTLY on dispatcher BEFORE calc_router
+@dp.callback_query(F.data.startswith("good_ev_bet_"))
+async def handle_good_ev_bet(callback: types.CallbackQuery):
+    logger.info(f"🔥 GOOD EV BET HANDLER: {callback.data}")
+    try:
+        await callback.answer("⏳ Enregistrement...")
+    except:
+        pass
+    from bot.bet_handlers_ev_middle import callback_good_ev_bet
+    await callback_good_ev_bet(callback)
+
+@dp.callback_query(F.data.startswith("middle_bet_"))
+async def handle_middle_bet(callback: types.CallbackQuery):
+    logger.info(f"🔥 MIDDLE BET HANDLER: {callback.data}")
+    try:
+        await callback.answer("⏳ Enregistrement...")
+    except:
+        pass
+    from bot.bet_handlers_ev_middle import callback_middle_bet
+    await callback_middle_bet(callback)
+
 dp.include_router(calc_router)
 
 # Book Health Monitor System
@@ -829,8 +853,8 @@ async def midnew_back_to_msg_handler_dp(callback: types.CallbackQuery):
     except:
         pass
 
-# Capture Good EV messages on any Good EV callback
-@dp.callback_query(F.data.startswith("good_ev_"))
+# Capture Good EV messages on any Good EV callback (EXCEPT bet callbacks!)
+@dp.callback_query(F.data.startswith("good_ev_") & ~F.data.startswith("good_ev_bet_"))
 async def _capture_good_ev(callback: types.CallbackQuery):
     _register_current_goodev_from_callback(callback)
     # Do not interfere with existing handlers; just acknowledge silently
@@ -959,6 +983,7 @@ async def send_arbitrage_alert_to_users(arb_data: dict):
                 user_min = user.min_arb_percent or 0.5
                 user_max = user.max_arb_percent or 100.0
                 if not (user_min <= arb_percent <= user_max):
+                    print(f"⛔ FILTER: User {user.telegram_id} blocked - arb {arb_percent}% not in [{user_min}%, {user_max}%]")
                     return False
                 
                 # Check casino filter (both sides of arbitrage)
@@ -1974,32 +1999,24 @@ async def handle_positive_ev(req: Request):
                     
                     message = format_good_odds_message(parsed, user_cash, user.language, user_profile, total_bets)
                     
-                    # Recommended stake based on EV quality tiers
-                    # <8% => 1%, 8-12% => 2%, 12-18% => 3.5%, >=18% => 5%
-                    if ev_percent >= 18.0:
-                        rec_ratio = 0.05
-                    elif ev_percent >= 12.0:
-                        rec_ratio = 0.035
-                    elif ev_percent >= 8.0:
-                        rec_ratio = 0.02
-                    else:
-                        rec_ratio = 0.01
-                    rec_stake = round(user_cash * rec_ratio, 2)
-                    my_stake = round(user_cash, 2)
+                    # 🎯 FIX: Use user_cash directly as stake (matches message "Stake: $user_cash")
+                    stake = round(user_cash, 2)
                     
-                    # Calculate TRUE profit if you WIN (not just EV)
+                    # Calculate profit if WIN = based on ODDS
+                    # +100 odds → 100% profit, +200 → 200%, -200 → 50%
                     try:
-                        odds_value = parsed.get('odds', 0)
-                        if odds_value > 0:  # American odds positive
-                            decimal_odds = 1 + (odds_value / 100)
-                        else:  # American odds negative
-                            decimal_odds = 1 + (100 / abs(odds_value))
-                        rec_ev_profit = round(rec_stake * (decimal_odds - 1), 2)
-                        my_ev_profit = round(my_stake * (decimal_odds - 1), 2)
-                    except:
-                        # Fallback to old EV calculation if odds parsing fails
-                        rec_ev_profit = round(rec_stake * (ev_percent/100.0), 2)
-                        my_ev_profit = round(my_stake * (ev_percent/100.0), 2)
+                        odds_str = str(parsed.get('odds', '0')).replace('+', '')
+                        odds_value = int(odds_str) if odds_str else 0
+                        
+                        if odds_value > 0:
+                            win_profit = round(stake * (odds_value / 100), 2)
+                        elif odds_value < 0:
+                            win_profit = round(stake * (100 / abs(odds_value)), 2)
+                        else:
+                            win_profit = stake
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to parse odds for profit calc: {e}")
+                        win_profit = stake
                     
                     # Build keyboard - unified layout like arbitrage
                     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -2027,19 +2044,17 @@ async def handle_positive_ev(req: Request):
                     )
                     PENDING_CALLS[call_id] = goodev_call
                     
-                    # Use recommended stake for JE PARIE button
-                    # NOTE: For per-call CASHH changes and calculator flows we reuse
-                    # the same mechanisms as arbitrage, keyed by the event_id `eid`.
+                    # I BET button uses stake directly (matches message "Stake: $X")
                     keyboard = [
                         # Row 1: Casino button
                         [InlineKeyboardButton(
                             text=f"{get_casino_logo(parsed['bookmaker'])} {parsed['bookmaker']}",
                             url=bookmaker_url
                         )],
-                        # Row 2: JE PARIE button (using recommended stake)
+                        # Row 2: JE PARIE button (using full stake shown in message)
                         [InlineKeyboardButton(
-                            text=(f"💰 I BET (+${rec_ev_profit:.2f} if win)" if user.language == 'en' else f"💰 JE PARIE (+${rec_ev_profit:.2f} profit)"),
-                            callback_data=f"good_ev_bet_{eid}_{rec_stake:.2f}_{rec_ev_profit:.2f}"
+                            text=(f"💰 I BET (+${win_profit:.2f} if win)" if user.language == 'en' else f"💰 JE PARIE (+${win_profit:.2f} profit)"),
+                            callback_data=f"good_ev_bet_{eid}_{stake:.2f}_{win_profit:.2f}"
                         )],
                         # Row 3: Calculator Custom (unified system)
                         [InlineKeyboardButton(
@@ -2547,12 +2562,14 @@ async def nowpayments_webhook(request: Request, x_nowpayments_sig: str = Header(
         db.close()
 
     welcome_text = (
-        "🎉 <b>Bienvenue en PREMIUM!</b>\n\n"
+        "🎉 <b>Bienvenue en ALPHA!</b>\n\n"
         "Tu as maintenant accès à TOUTES les alertes en temps réel, au mode RISKED, au calculateur, et aux stats avancées.\n\n"
+        "🌐 <b>Connecte-toi au Dashboard:</b> https://smartrisk0.xyz\n\n"
         "<b>Important:</b> Lis le <b>/guide</b> complet (<b>5 minutes</b>) pour éviter $500+ d'erreurs, puis clique <b>I BET</b> après chaque arb.\n\n"
         "Je t'envoie les alertes récentes encore actives."
         if lang == "fr" else
-        "🎉 <b>Welcome to PREMIUM!</b>\n\nYou now have access to ALL real-time alerts, RISKED mode, calculator, and advanced stats.\n\n"
+        "🎉 <b>Welcome to ALPHA!</b>\n\nYou now have access to ALL real-time alerts, RISKED mode, calculator, and advanced stats.\n\n"
+        "🌐 <b>Connect to Dashboard:</b> https://smartrisk0.xyz\n\n"
         "<b>Important:</b> Read the complete <b>/guide</b> (<b>5 minutes</b>) to avoid $500+ mistakes, then click <b>I BET</b> after each arb.\n\n"
         "I'll send you recent active alerts."
     )
@@ -3650,9 +3667,18 @@ async def handle_custom_cashh_amount(message: types.Message, state: FSMContext):
         # Good Odds: use Good Odds formatter
         from utils.oddsjam_formatters import format_good_odds_message
         text_render = format_good_odds_message(drop, amount, lang)
-        # For Good Odds, profit is EV-based
-        ev_percent = drop.get('ev_percent', 0)
-        expected_profit = amount * (ev_percent / 100)
+        # For Good Odds, profit if WIN = based on ODDS, not EV%!
+        try:
+            odds_raw = drop.get('outcomes', [{}])[0].get('odds', 0)
+            odds = int(str(odds_raw).replace('+', '').replace('−', '-'))
+            if odds > 0:
+                expected_profit = amount * (odds / 100)  # +100 = 100% profit
+            elif odds < 0:
+                expected_profit = amount * (100 / abs(odds))  # -200 = 50% profit
+            else:
+                expected_profit = amount
+        except:
+            expected_profit = amount
         stakes = [amount]  # Single stake
     elif bet_type == 'middle':
         # Middle: use Middle formatter
@@ -4224,50 +4250,34 @@ async def back_to_main_arbitrage(callback: types.CallbackQuery):
         outcomes = drop.get('outcomes', [])
         if outcomes:
             o1 = outcomes[0]
-            casino_lower = (o1.get('casino', '') or '').lower()
             casino_name = o1.get('casino', '')
             
-            # Extract the ORIGINAL stake from outcome (includes original bankroll calculation)
-            rec_stake = o1.get('stake', 0)
+            # 🎯 FIX: Use bankroll DIRECTLY as stake (what user sees in message)
+            # NOT a percentage of it - the message shows "Stake: $bankroll"
+            stake = bankroll
             
-            if rec_stake:
-                # Calculate EV profit from original stake
-                try:
-                    odds = int(o1.get('odds', 0))
-                    from utils.oddsjam_parser import american_to_decimal
-                    decimal_odds = american_to_decimal(odds)
-                    true_prob = drop.get('true_probability', 0.5)
-                    edge = (decimal_odds * true_prob) - 1
-                    rec_ev_profit = rec_stake * edge
-                except Exception:
-                    rec_ev_profit = 0
-            else:
-                # Fallback: recalculate with current bankroll
-                try:
-                    odds = int(o1.get('odds', 0))
-                    from utils.oddsjam_parser import american_to_decimal
-                    decimal_odds = american_to_decimal(odds)
-                    true_prob = drop.get('true_probability', 0.5)
-                    
-                    # Kelly fraction
-                    kelly_fraction = 0.25
-                    edge = (decimal_odds * true_prob) - 1
-                    if edge > 0:
-                        rec_stake = bankroll * (edge / (decimal_odds - 1)) * kelly_fraction
-                        rec_stake = min(rec_stake, bankroll * 0.05)  # Max 5%
-                    else:
-                        rec_stake = bankroll * 0.01
-                    
-                    rec_ev_profit = rec_stake * edge
-                except Exception:
-                    rec_stake = bankroll * 0.01
-                    rec_ev_profit = 0
+            # Get casino URL
+            from utils.odds_api_links import get_fallback_url
+            casino_url = get_fallback_url(casino_name)
+            
+            # 🎯 Profit if WIN = based on ODDS
+            # +100 odds → 100% profit, +200 → 200%, -200 → 50%
+            try:
+                odds = int(o1.get('odds', 0))
+                if odds > 0:
+                    win_profit = stake * (odds / 100)
+                elif odds < 0:
+                    win_profit = stake * (100 / abs(odds))
+                else:
+                    win_profit = stake  # Fallback
+            except:
+                win_profit = stake
             
             kb = [
-                [InlineKeyboardButton(text=f"{get_casino_logo(casino_name)} {casino_name}", callback_data=f"open_casino_{casino_lower.replace(' ', '_')}")],
+                [InlineKeyboardButton(text=f"{get_casino_logo(casino_name)} {casino_name}", url=casino_url)],
                 [InlineKeyboardButton(
-                    text=(f"💰 I BET (+${rec_ev_profit:.2f} if win)" if lang=='en' else f"💰 JE PARIE (+${rec_ev_profit:.2f} profit)"),
-                    callback_data=f"good_ev_bet_{eid}_{rec_stake:.2f}_{rec_ev_profit:.2f}"
+                    text=(f"💰 I BET (+${win_profit:.2f} if win)" if lang=='en' else f"💰 JE PARIE (+${win_profit:.2f} profit)"),
+                    callback_data=f"good_ev_bet_{eid}_{stake:.2f}_{win_profit:.2f}"
                 )],
                 [InlineKeyboardButton(text="🧮 Custom Calculator" if lang=='en' else "🧮 Calculateur Custom", callback_data=f"calc_{eid}|menu")],
                 [InlineKeyboardButton(text="📊 Simulation & Risk" if lang=='en' else "📊 Simulation & Risque", callback_data=f"sim_{eid}")],
@@ -4289,12 +4299,13 @@ async def back_to_main_arbitrage(callback: types.CallbackQuery):
         # Get outcomes for casino buttons and calculate I BET values
         outcomes = drop.get('outcomes', [])
         casino_buttons = []
+        from utils.odds_api_links import get_fallback_url
         for outcome_data in outcomes[:2]:
             casino_name = outcome_data.get('casino', 'Unknown')
-            casino_lower = casino_name.lower()
+            casino_url = get_fallback_url(casino_name)
             casino_buttons.append(InlineKeyboardButton(
                 text=f"{get_casino_logo(casino_name)} {casino_name}",
-                callback_data=f"open_casino_{casino_lower.replace(' ', '_')}"
+                url=casino_url  # 🎯 FIX: Use url instead of callback_data
             ))
 
         # Always recompute Middle stakes from CURRENT bankroll and odds

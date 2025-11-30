@@ -28,7 +28,11 @@ async def callback_good_ev_bet(callback: types.CallbackQuery):
 
     Note: Expected profit is EV-based, actual result can be win or loss.
     """
-    await callback.answer()
+    logger.info(f"🎯 GOOD EV BET HANDLER CALLED: {callback.data}")
+    try:
+        await callback.answer("⏳ Enregistrement...", show_alert=False)
+    except Exception:
+        pass  # Answer already called by middleware
     
     try:
         parts = callback.data.split('_')
@@ -148,17 +152,29 @@ async def callback_good_ev_bet(callback: types.CallbackQuery):
         # Fetch language
         lang = user.language if user else 'en'
         
-        # Confirmation message with THIS BET details + daily totals
-        # Calculate potential WIN profit (not just EV)
-        # EV is expected value, but if bet WINS, profit = stake * (odds - 1)
-        # We don't have odds here, so just show EV info clearly
+        # 🎯 Calculate REAL profit if you WIN from drop data (not callback expected_profit)
+        win_profit = expected_profit  # Default to callback value
+        if drop and drop.payload:
+            try:
+                drop_data = drop.payload
+                odds_str = str(drop_data.get('odds', '0')).replace('+', '')
+                odds_value = int(odds_str) if odds_str else 0
+                if odds_value > 0:  # American positive
+                    decimal_odds = 1 + (odds_value / 100)
+                elif odds_value < 0:  # American negative
+                    decimal_odds = 1 + (100 / abs(odds_value))
+                else:
+                    decimal_odds = 2.0
+                win_profit = total_stake * (decimal_odds - 1)
+            except Exception as e:
+                logger.warning(f"Could not calculate win profit: {e}")
         
         if lang == 'fr':
             confirmation = (
                 f"\n\n✅ <b>BET GOOD EV ENREGISTRÉ!</b>\n\n"
                 f"📊 <b>Ce pari:</b>\n"
                 f"• Misé: ${total_stake:.2f}\n"
-                f"• EV estimé: ${expected_profit:.2f}\n\n"
+                f"• Profit si tu GAGNES: <b>${win_profit:.2f}</b>\n\n"
                 f"📊 <b>Aujourd'hui (total):</b>\n"
                 f"• Paris: {daily_stat.total_bets}\n"
                 f"• Misé total: ${daily_stat.total_staked:.2f}\n"
@@ -171,7 +187,7 @@ async def callback_good_ev_bet(callback: types.CallbackQuery):
                 f"\n\n✅ <b>GOOD EV BET RECORDED!</b>\n\n"
                 f"📊 <b>This bet:</b>\n"
                 f"• Staked: ${total_stake:.2f}\n"
-                f"• Estimated EV: ${expected_profit:.2f}\n\n"
+                f"• Profit if you WIN: <b>${win_profit:.2f}</b>\n\n"
                 f"📊 <b>Today (total):</b>\n"
                 f"• Bets: {daily_stat.total_bets}\n"
                 f"• Total staked: ${daily_stat.total_staked:.2f}\n"
@@ -248,7 +264,11 @@ async def callback_middle_bet(callback: types.CallbackQuery):
             middle_bet_{total_stake}_{middle_profit}
     Note: Middle hits rarely (~15%), usually small loss
     """
-    await callback.answer()
+    logger.info(f"🎯 MIDDLE BET HANDLER CALLED: {callback.data}")
+    try:
+        await callback.answer("⏳ Enregistrement...", show_alert=False)
+    except Exception:
+        pass  # Answer already called by middleware
     
     try:
         parts = callback.data.split('_')

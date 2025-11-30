@@ -14,38 +14,58 @@ from models.user import User
 logger = logging.getLogger(__name__)
 router = Router()
 
-WEB_API_URL = "https://risk-web-pearl.vercel.app/api/auth/check"
+WEB_API_URL = "https://smartrisk0.xyz/api/auth/check"
 
 @router.message(Command("start"))
 async def cmd_start_with_auth(message: types.Message):
     """Handle /start command with auth code"""
     logger.info(f"🔍 /start received from user {message.from_user.id}")
-    logger.info(f"🔍 Full message text: {message.text}")
     
     args = message.text.split()
-    logger.info(f"🔍 Args: {args}")
     
-    # Check if auth code is provided
+    # Check if auth code is provided (web login)
     if len(args) > 1 and args[1].startswith("auth_"):
-        auth_code = args[1].replace("auth_", "")
-        logger.info(f"🔑 Auth code detected: {auth_code}")
+        # Generate a unique session token
+        import base64
+        import json
+        import hashlib
+        import time
         
-        # Authenticate the user
-        logger.info(f"🌐 Calling web API to authenticate user {message.from_user.id}")
-        await authenticate_user(message.from_user.id, message.from_user.username, auth_code)
+        timestamp = int(time.time())
+        session_id = hashlib.sha256(f"{message.from_user.id}_{timestamp}".encode()).hexdigest()[:16]
         
-        # Send success message
+        token_data = {
+            "tid": message.from_user.id,
+            "user": message.from_user.username or f"User{message.from_user.id}",
+            "ts": timestamp,
+            "sid": session_id  # Unique session ID
+        }
+        token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
+        
+        # Save session to database (invalidates previous sessions)
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+            if user:
+                user.web_session_id = session_id  # Only this session is valid now
+                db.commit()
+        finally:
+            db.close()
+        
+        # Send direct link to dashboard
+        dashboard_url = f"https://smartrisk0.xyz/auth/callback?token={token}"
+        
         await message.reply(
             "✅ <b>Authentication Successful!</b>\n\n"
-            "You're now connected to the Risk0 Dashboard.\n"
-            "You can close this chat and return to the web app.",
-            parse_mode=ParseMode.HTML
+            f"👉 <a href='{dashboard_url}'>Click here to open Dashboard</a>\n\n"
+            "<i>Or copy this link:</i>\n"
+            f"<code>{dashboard_url}</code>",
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
         )
-        logger.info(f"✅ Auth success message sent to {message.from_user.id}")
         return
     
     # Normal start command
-    logger.info(f"📝 Normal /start command, no auth code")
     await handle_normal_start(message)
 
 async def authenticate_user(telegram_id: int, username: str, auth_code: str):
@@ -101,7 +121,7 @@ async def handle_normal_start(message: types.Message):
                 "🎯 <b>Bienvenue sur Risk0!</b>\n\n"
                 "Je suis ton assistant pour les alertes d'arbitrage.\n\n"
                 "📱 <b>Connecte-toi au Dashboard:</b>\n"
-                "https://risk-web-pearl.vercel.app\n\n"
+                "https://smartrisk0.xyz\n\n"
                 "Utilise /help pour voir toutes les commandes."
             )
         else:
@@ -109,7 +129,7 @@ async def handle_normal_start(message: types.Message):
                 "🎯 <b>Welcome to Risk0!</b>\n\n"
                 "I'm your arbitrage alerts assistant.\n\n"
                 "📱 <b>Connect to Dashboard:</b>\n"
-                "https://risk-web-pearl.vercel.app\n\n"
+                "https://smartrisk0.xyz\n\n"
                 "Use /help to see all commands."
             )
         

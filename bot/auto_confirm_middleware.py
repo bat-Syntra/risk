@@ -49,8 +49,17 @@ class AutoconfirmMiddleware(BaseMiddleware):
                 cbdata = (event.data or "")
         except Exception:
             cbdata = None
-        if cbdata and (cbdata.startswith("confirm_yes_") or cbdata.startswith("confirm_no_")):
-            return await handler(event, data)
+        
+        # 🎯 Allow confirmation callbacks + BET callbacks to pass through
+        ALLOWED_CALLBACKS = (
+            "confirm_yes_", "confirm_no_",
+            "good_ev_bet_", "middle_bet_", "i_bet_",  # 🎯 BET RECORDING CALLBACKS
+            "undo_bet_",  # Allow undoing bets too
+        )
+        if cbdata:
+            for allowed in ALLOWED_CALLBACKS:
+                if cbdata.startswith(allowed):
+                    return await handler(event, data)
 
         # IMPORTANT:
         # - We only block CALLBACKS (buttons, menus) for daily confirmations.
