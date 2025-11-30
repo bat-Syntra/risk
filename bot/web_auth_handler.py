@@ -42,13 +42,40 @@ async def cmd_start_with_auth(message: types.Message):
         }
         token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
         
-        # Save session to database (invalidates previous sessions)
+        # Check if user is ALPHA tier or admin
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
-            if user:
-                user.web_session_id = session_id  # Only this session is valid now
-                db.commit()
+            if not user:
+                await message.reply(
+                    "❌ <b>Access Denied</b>\n\n"
+                    "You need to be a registered user first.\n"
+                    "Use /start in the bot to register.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Only ALPHA tier or admin can access web dashboard
+            is_admin = message.from_user.id in [6029059837, 8213628656]  # Admin IDs
+            is_alpha = user.subscription_tier == 'alpha'
+            
+            if not is_admin and not is_alpha:
+                await message.reply(
+                    "❌ <b>ALPHA Access Required</b>\n\n"
+                    "🔒 The web dashboard is exclusively available for <b>ALPHA</b> members.\n\n"
+                    "💎 Upgrade to ALPHA to unlock:\n"
+                    "• Full web dashboard access\n"
+                    "• Real-time alerts\n"
+                    "• Advanced analytics\n"
+                    "• Priority support\n\n"
+                    "Use /subscribe to upgrade!",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Save session (invalidates previous sessions)
+            user.web_session_id = session_id  # Only this session is valid now
+            db.commit()
         finally:
             db.close()
         

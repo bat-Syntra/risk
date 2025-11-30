@@ -4,6 +4,7 @@ These endpoints are called by the web dashboard (risk0-web)
 """
 import json
 import asyncio
+import re
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -124,14 +125,19 @@ async def get_live_calls(type: str = "all", limit: int = 50):
             
             # Extract player name from payload
             player = payload.get("player")
-            if not player and "selection" in payload:
+            if not player:
                 # Try to extract from selection like "Lauri Markkanen Over 7.5"
-                import re
                 sel = payload.get("selection", "")
                 # Common pattern: "Player Name Over/Under X.X"
                 match = re.match(r'^(.+?)\s+(?:Over|Under)\s+[\d.]+', sel, re.IGNORECASE)
                 if match:
                     player = match.group(1).strip()
+                # Also try from outcomes
+                if not player and payload.get("outcomes"):
+                    outcome = payload["outcomes"][0].get("outcome", "")
+                    match = re.match(r'^(.+?)\s+(?:Over|Under)\s+[\d.]+', outcome, re.IGNORECASE)
+                    if match:
+                        player = match.group(1).strip()
             
             result.append({
                 "id": call.id,
