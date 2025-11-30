@@ -20,6 +20,9 @@ class DropEvent(Base):
     match = Column(String(255))
     league = Column(String(255))
     market = Column(String(255))
+    
+    # Match time from The Odds API
+    match_time = Column(DateTime(timezone=True), nullable=True, index=True)
 
     # full payload as JSON for later rendering
     payload = Column(JSON)

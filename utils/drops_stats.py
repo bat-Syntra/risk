@@ -26,6 +26,14 @@ def record_drop(drop: dict) -> int:
             ev = db.query(DropEvent).filter(DropEvent.event_id == eid).first()
             now = datetime.now()
             bet_type = str(drop.get("bet_type") or "arbitrage")
+            # Parse match_time from commence_time if available
+            match_time = None
+            if drop.get("commence_time"):
+                try:
+                    match_time = datetime.fromisoformat(drop["commence_time"].replace('Z', '+00:00'))
+                except:
+                    pass
+            
             if ev is None:
                 ev = DropEvent(
                     event_id=eid,
@@ -35,6 +43,7 @@ def record_drop(drop: dict) -> int:
                     league=str(drop.get("league") or ""),
                     market=str(drop.get("market") or ""),
                     payload=drop,
+                    match_time=match_time,
                 )
                 ev.received_at = now
                 db.add(ev)
@@ -48,6 +57,9 @@ def record_drop(drop: dict) -> int:
                 ev.market = str(drop.get("market") or ev.market or "")
                 ev.payload = drop
                 ev.received_at = now
+                # Update match_time if available
+                if match_time:
+                    ev.match_time = match_time
             db.commit()
             
             # Refresh to get the ID

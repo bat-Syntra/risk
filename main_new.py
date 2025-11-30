@@ -1546,8 +1546,15 @@ async def receive_drop(req: Request):
                     ev_update = db_update.query(DropEvent).filter(DropEvent.event_id == eid).first()
                     if ev_update:
                         ev_update.payload = enriched
+                        # ✅ Save match_time to dedicated column
+                        if enriched.get('commence_time'):
+                            from datetime import datetime
+                            try:
+                                ev_update.match_time = datetime.fromisoformat(enriched['commence_time'].replace('Z', '+00:00'))
+                            except:
+                                pass
                         db_update.commit()
-                        print(f"💾 DB updated with formatted_time: {enriched.get('formatted_time', 'N/A')}")
+                        print(f"💾 DB updated with match_time: {enriched.get('formatted_time', 'N/A')}")
                 except Exception as db_err:
                     print(f"⚠️ DB update failed: {db_err}")
                 finally:
@@ -1833,18 +1840,18 @@ async def handle_positive_ev(req: Request):
             logger.error(f"Failed to parse Positive EV: {notif_text}")
             return {"status": "error", "message": "Failed to parse"}
         
-        # Enrichir avec les données API SEULEMENT si EV >= 10% (pour économiser l'API)
+        # Enrichir avec les données API si EV >= 5% (pour avoir la date du match)
         try:
             ev_percent = float(parsed.get('ev_percent', 0))
-            if ev_percent >= 10.0:
-                logger.info(f"Good EV {ev_percent}% >= 10%, enriching with API")
+            if ev_percent >= 5.0:
+                logger.info(f"Good EV {ev_percent}% >= 5%, enriching with API")
                 enriched = enrich_alert_with_api(parsed, 'good_ev')
                 if enriched:
                     parsed = enriched
                 else:
                     logger.warning("API enrichment returned None for Good EV, using original data")
             else:
-                logger.info(f"Good EV {ev_percent}% < 10%, skipping API enrichment to save quota")
+                logger.info(f"Good EV {ev_percent}% < 5%, skipping API enrichment to save quota")
                 # Remove any existing commence_time or formatted_time to prevent date display for low EV
                 parsed.pop('commence_time', None)
                 parsed.pop('formatted_time', None)
@@ -2162,18 +2169,18 @@ async def handle_middle(req: Request):
             logger.error(f"Failed to parse Middle: {notif_text}")
             return {"status": "error", "message": "Failed to parse"}
         
-        # Enrichir avec les données API SEULEMENT si middle >= 1% (pour économiser l'API)
+        # Enrichir avec les données API si middle >= 0.5% (pour avoir la date du match)
         try:
             middle_percent = float(parsed.get('middle_percent', 0))
-            if middle_percent >= 1.0:
-                logger.info(f"Middle {middle_percent}% >= 1%, enriching with API")
+            if middle_percent >= 0.5:
+                logger.info(f"Middle {middle_percent}% >= 0.5%, enriching with API")
                 enriched = enrich_alert_with_api(parsed, 'middle')
                 if enriched:
                     parsed = enriched
                 else:
                     logger.warning("API enrichment returned None, using original data")
             else:
-                logger.info(f"Middle {middle_percent}% < 1%, skipping API enrichment to save quota")
+                logger.info(f"Middle {middle_percent}% < 0.5%, skipping API enrichment to save quota")
                 # Remove any existing commence_time or formatted_time to prevent date display for low% middle
                 parsed.pop('commence_time', None)
                 parsed.pop('formatted_time', None)
