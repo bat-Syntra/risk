@@ -16,84 +16,84 @@ router = Router()
 
 WEB_API_URL = "https://smartrisk0.xyz/api/auth/check"
 
-@router.message(Command("start"))
+from aiogram.filters import CommandStart
+
+@router.message(CommandStart(deep_link=True))
 async def cmd_start_with_auth(message: types.Message):
-    """Handle /start command with auth code"""
-    logger.info(f"🔍 /start received from user {message.from_user.id}")
-    
+    """Handle /start command with auth code ONLY"""
     args = message.text.split()
     
-    # Check if auth code is provided (web login)
-    if len(args) > 1 and args[1].startswith("auth_"):
-        # Generate a unique session token
-        import base64
-        import json
-        import hashlib
-        import time
-        
-        timestamp = int(time.time())
-        session_id = hashlib.sha256(f"{message.from_user.id}_{timestamp}".encode()).hexdigest()[:16]
-        
-        token_data = {
-            "tid": message.from_user.id,
-            "user": message.from_user.username or f"User{message.from_user.id}",
-            "ts": timestamp,
-            "sid": session_id  # Unique session ID
-        }
-        token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
-        
-        # Check if user is ALPHA tier or admin
-        db = SessionLocal()
-        try:
-            user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
-            if not user:
-                await message.reply(
-                    "❌ <b>Access Denied</b>\n\n"
-                    "You need to be a registered user first.\n"
-                    "Use /start in the bot to register.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-            
-            # Only PREMIUM tier, free_access, or admin can access web dashboard
-            is_admin = message.from_user.id in [6029059837, 8213628656, 8004919557]  # Admin IDs
-            is_premium = user.tier == TierLevel.PREMIUM or user.free_access
-            
-            if not is_admin and not is_premium:
-                await message.reply(
-                    "❌ <b>ALPHA Access Required</b>\n\n"
-                    "🔒 The web dashboard is exclusively available for <b>ALPHA</b> members.\n\n"
-                    "💎 Upgrade to ALPHA to unlock:\n"
-                    "• Full web dashboard access\n"
-                    "• Real-time alerts\n"
-                    "• Advanced analytics\n"
-                    "• Priority support\n\n"
-                    "Use /subscribe to upgrade!",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-            
-            # Save session (invalidates previous sessions)
-            user.web_session_id = session_id  # Only this session is valid now
-            db.commit()
-        finally:
-            db.close()
-        
-        # Send direct link to dashboard
-        dashboard_url = f"https://smartrisk0.xyz/auth/callback?token={token}"
-        
-        await message.reply(
-            "✅ <b>Authentication Successful!</b>\n\n"
-            f"👉 <a href='{dashboard_url}'>Click here to open Dashboard</a>\n\n"
-            "<i>Or copy this link:</i>\n"
-            f"<code>{dashboard_url}</code>",
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True
-        )
-        return
+    # Only handle if auth code is provided (web login)
+    if len(args) <= 1 or not args[1].startswith("auth_"):
+        return  # Let handlers.py handle normal /start
     
-    # Normal start command
-    await handle_normal_start(message)
+    logger.info(f"🔍 Web auth /start received from user {message.from_user.id}")
+    
+    # Generate a unique session token
+    import base64
+    import json
+    import hashlib
+    import time
+    
+    timestamp = int(time.time())
+    session_id = hashlib.sha256(f"{message.from_user.id}_{timestamp}".encode()).hexdigest()[:16]
+    
+    token_data = {
+        "tid": message.from_user.id,
+        "user": message.from_user.username or f"User{message.from_user.id}",
+        "ts": timestamp,
+        "sid": session_id  # Unique session ID
+    }
+    token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
+    
+    # Check if user is ALPHA tier or admin
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+        if not user:
+            await message.reply(
+                "❌ <b>Access Denied</b>\n\n"
+                "You need to be a registered user first.\n"
+                "Use /start in the bot to register.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        # Only PREMIUM tier, free_access, or admin can access web dashboard
+        is_admin = message.from_user.id in [6029059837, 8213628656, 8004919557]  # Admin IDs
+        is_premium = user.tier == TierLevel.PREMIUM or user.free_access
+        
+        if not is_admin and not is_premium:
+            await message.reply(
+                "❌ <b>ALPHA Access Required</b>\n\n"
+                "🔒 The web dashboard is exclusively available for <b>ALPHA</b> members.\n\n"
+                "💎 Upgrade to ALPHA to unlock:\n"
+                "• Full web dashboard access\n"
+                "• Real-time alerts\n"
+                "• Advanced analytics\n"
+                "• Priority support\n\n"
+                "Use /subscribe to upgrade!",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        # Save session (invalidates previous sessions)
+        user.web_session_id = session_id  # Only this session is valid now
+        db.commit()
+    finally:
+        db.close()
+    
+    # Send direct link to dashboard
+    dashboard_url = f"https://smartrisk0.xyz/auth/callback?token={token}"
+    
+    await message.reply(
+        "✅ <b>Authentication Successful!</b>\n\n"
+        f"👉 <a href='{dashboard_url}'>Click here to open Dashboard</a>\n\n"
+        "<i>Or copy this link:</i>\n"
+        f"<code>{dashboard_url}</code>",
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True
+    )
 
 async def authenticate_user(telegram_id: int, username: str, auth_code: str):
     """Send authentication to web API"""
@@ -125,41 +125,3 @@ async def authenticate_user(telegram_id: int, username: str, auth_code: str):
         import traceback
         logger.error(traceback.format_exc())
 
-async def handle_normal_start(message: types.Message):
-    """Handle normal /start command"""
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
-        
-        if not user:
-            # Create new user
-            user = User(
-                telegram_id=message.from_user.id,
-                username=message.from_user.username,
-                first_name=message.from_user.first_name
-            )
-            db.add(user)
-            db.commit()
-        
-        lang = user.language if user else 'en'
-        
-        if lang == 'fr':
-            text = (
-                "🎯 <b>Bienvenue sur Risk0!</b>\n\n"
-                "Je suis ton assistant pour les alertes d'arbitrage.\n\n"
-                "📱 <b>Connecte-toi au Dashboard:</b>\n"
-                "https://smartrisk0.xyz\n\n"
-                "Utilise /help pour voir toutes les commandes."
-            )
-        else:
-            text = (
-                "🎯 <b>Welcome to Risk0!</b>\n\n"
-                "I'm your arbitrage alerts assistant.\n\n"
-                "📱 <b>Connect to Dashboard:</b>\n"
-                "https://smartrisk0.xyz\n\n"
-                "Use /help to see all commands."
-            )
-        
-        await message.reply(text, parse_mode=ParseMode.HTML)
-    finally:
-        db.close()
