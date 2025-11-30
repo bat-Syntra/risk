@@ -56,7 +56,7 @@ async def cmd_start_with_auth(message: types.Message):
                 return
             
             # Only PREMIUM tier, free_access, or admin can access web dashboard
-            is_admin = message.from_user.id in [6029059837, 8213628656]  # Admin IDs
+            is_admin = message.from_user.id in [6029059837, 8213628656, 8004919557]  # Admin IDs
             is_premium = user.tier == TierLevel.PREMIUM or user.free_access
             
             if not is_admin and not is_premium:

@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 # Role hierarchy
-SUPER_ADMIN_ID = 8213628656  # Your telegram_id
+SUPER_ADMIN_ID = 8004919557  # Your telegram_id
+SUPER_ADMIN_IDS = [8004919557, 8213628656, 6029059837]  # All super admins
 
 
 def get_user_role(telegram_id: int) -> str:
@@ -35,6 +36,8 @@ def get_user_role(telegram_id: int) -> str:
 
 def is_super_admin(telegram_id: int) -> bool:
     """Check if user is super admin"""
+    if telegram_id in SUPER_ADMIN_IDS:
+        return True
     return get_user_role(telegram_id) == "super_admin"
 
 
