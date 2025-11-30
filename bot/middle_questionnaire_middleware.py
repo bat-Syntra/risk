@@ -28,6 +28,7 @@ class MiddleQuestionnaireMiddleware(BaseMiddleware):
         'arb_outcome_',  # Les callbacks du questionnaire arbitrage
         'ev_outcome_',  # Les callbacks du questionnaire good EV
         'match_passed_',  # Les callbacks pour confirmer si le match est passé
+        'bet_notplayed_',  # Les callbacks pour "match pas encore joué"
         'noop',  # Callback vide
     }
     

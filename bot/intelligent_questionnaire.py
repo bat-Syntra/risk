@@ -184,6 +184,10 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ PERDU (erreur humaine)",
                     callback_data=f"middle_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match pas encore joué",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             else:
                 text = (
                     f"🎲 <b>MIDDLE BET - CONFIRMATION NEEDED</b>\n\n"
@@ -209,11 +213,16 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ LOST (human error)",
                     callback_data=f"middle_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match not played yet",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [jackpot_btn],
                 [arb_btn],
-                [lost_btn]
+                [lost_btn],
+                [not_played_btn]
             ])
         
         elif bet_type == 'arbitrage':
@@ -240,6 +249,10 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ NON - Problème",
                     callback_data=f"arb_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match pas encore joué",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             else:
                 text = (
                     f"✅ <b>ARBITRAGE - CONFIRMATION NEEDED</b>\n\n"
@@ -260,10 +273,15 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ NO - Problem",
                     callback_data=f"arb_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match not played yet",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [yes_btn],
-                [no_btn]
+                [no_btn],
+                [not_played_btn]
             ])
         
         elif bet_type == 'good_ev':
@@ -289,6 +307,10 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ PERDU",
                     callback_data=f"ev_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match pas encore joué",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             else:
                 text = (
                     f"📈 <b>GOOD EV - CONFIRMATION NEEDED</b>\n\n"
@@ -309,10 +331,15 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     text="❌ LOST",
                     callback_data=f"ev_outcome_{bet.id}_lost"
                 )
+                not_played_btn = types.InlineKeyboardButton(
+                    text="⏳ Match not played yet",
+                    callback_data=f"bet_notplayed_{bet.id}"
+                )
             
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [won_btn],
-                [lost_btn]
+                [lost_btn],
+                [not_played_btn]
             ])
         
         else:

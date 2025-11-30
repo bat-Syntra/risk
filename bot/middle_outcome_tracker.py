@@ -516,6 +516,79 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
         await callback.answer("❌ Erreur", show_alert=True)
 
 
+@router.callback_query(F.data.startswith("bet_notplayed_"))
+async def callback_bet_not_played(callback: types.CallbackQuery):
+    """
+    Handle "Match not played yet" button - postpone confirmation request
+    
+    Format: bet_notplayed_<bet_id>
+    """
+    await callback.answer()
+    
+    try:
+        bet_id = int(callback.data.split("_")[2])
+        user_id = callback.from_user.id
+        
+        db = SessionLocal()
+        try:
+            bet = db.query(UserBet).filter(UserBet.id == bet_id).first()
+            
+            if not bet:
+                await callback.answer("❌ Bet non trouvé", show_alert=True)
+                return
+            
+            if bet.user_id != user_id:
+                await callback.answer("❌ Accès non autorisé", show_alert=True)
+                return
+            
+            # Get user language
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            lang = user.language if user else 'en'
+            
+            # Set match_date to tomorrow so it gets asked again tomorrow
+            from datetime import date, timedelta
+            tomorrow = date.today() + timedelta(days=1)
+            bet.match_date = tomorrow
+            bet.status = 'pending'  # Ensure status is still pending
+            
+            db.commit()
+            
+            # Update the message
+            if lang == 'fr':
+                new_text = (
+                    f"⏳ <b>REPORTÉ</b>\n\n"
+                    f"Je te redemanderai demain pour ce bet.\n"
+                    f"Bonne chance! 🍀"
+                )
+            else:
+                new_text = (
+                    f"⏳ <b>POSTPONED</b>\n\n"
+                    f"I'll ask you again tomorrow for this bet.\n"
+                    f"Good luck! 🍀"
+                )
+            
+            try:
+                await callback.message.edit_text(
+                    new_text,
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                await callback.message.answer(new_text, parse_mode=ParseMode.HTML)
+            
+            logger.info(f"Bet {bet_id} postponed - will ask again on {tomorrow}")
+            
+        except Exception as e:
+            logger.error(f"Error in callback_bet_not_played: {e}")
+            db.rollback()
+            await callback.answer("❌ Erreur", show_alert=True)
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error parsing bet_notplayed callback: {e}")
+        await callback.answer("❌ Erreur", show_alert=True)
+
+
 async def middle_questionnaire_loop(bot_instance):
     """
     Background loop that sends middle questionnaires every 6 hours.

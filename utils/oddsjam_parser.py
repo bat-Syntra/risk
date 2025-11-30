@@ -81,8 +81,8 @@ def parse_positive_ev_notification(notif_text: str) -> Optional[Dict]:
             return None
         odds = odds_match.group(1)
         
-        # Extract bookmaker
-        book_match = re.search(r'@\s*([A-Za-z0-9\s]+?)\s*\(', notif_text)
+        # Extract bookmaker (support tirets et caractères spéciaux: Mise-o-jeu, etc.)
+        book_match = re.search(r'@\s*([A-Za-z0-9\s\-\.]+?)\s*\(', notif_text)
         if not book_match:
             return None
         bookmaker = book_match.group(1).strip()

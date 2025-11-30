@@ -1367,108 +1367,117 @@ async def _build_parlays_list(user_id: int):
     manager = UserPreferencesManager()
     prefs = await manager.get_preferences(user_id)
     
-    # Get today's parlays
+    # Get recent parlays (using new schema)
     db = SessionLocal()
-    result = db.execute(text("""
-        SELECT * FROM parlays
-        WHERE date(created_at) = date('now')
-            AND status = 'pending'
-        ORDER BY quality_score DESC, calculated_edge DESC
-        LIMIT 50
-    """))
-    
-    parlays = result.fetchall()
+    try:
+        result = db.execute(text("""
+            SELECT id, strategy, casino, num_legs, combined_odds, avg_edge,
+                   estimated_win_prob, expected_value, risk_level,
+                   leg_drop_ids, legs_json, created_at, status
+            FROM parlays
+            WHERE created_at >= datetime('now', '-2 days')
+                AND status = 'active'
+            ORDER BY expected_value DESC
+            LIMIT 50
+        """))
+        
+        parlays = result.fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching parlays: {e}")
+        parlays = []
+    finally:
+        db.close()
     
     if not parlays:
-        db.close()
         manager.close()
         return {
             'text': (
                 "📭 <b>AUCUN PARLAY DISPONIBLE</b>\n\n"
-                "Aucun parlay ne correspond à vos préférences aujourd'hui.\n\n"
-                "Essayez d'ajuster vos paramètres:\n"
-                "/parlay_settings"
+                "Aucun parlay ne correspond à vos préférences.\n\n"
+                "Les parlays sont générés automatiquement à partir des calls.\n"
+                "Revenez plus tard!"
             ),
             'keyboard': types.InlineKeyboardMarkup(inline_keyboard=[[
                 types.InlineKeyboardButton(text="« Retour Menu", callback_data="menu")
             ]])
         }
     
-    # Filter by user preferences
+    # Filter by user preferences (risk level)
     filtered = []
     
+    risk_mapping = {
+        'conservative': 'LOW',
+        'balanced': 'MEDIUM', 
+        'aggressive': 'HIGH',
+        'lottery': 'EXTREME'
+    }
+    
+    user_risk_levels = []
+    if prefs['risk_profiles']:
+        for profile in prefs['risk_profiles']:
+            if profile.lower() in risk_mapping:
+                user_risk_levels.append(risk_mapping[profile.lower()])
+    
     for parlay in parlays:
-        # Parse JSON fields if they're strings
-        if isinstance(parlay.bookmakers, str):
-            try:
-                parlay_casinos = json.loads(parlay.bookmakers)
-            except:
-                parlay_casinos = []
-        else:
-            parlay_casinos = parlay.bookmakers or []
-        
-        # Check risk profile
-        if prefs['risk_profiles'] and parlay.risk_profile:
-            if parlay.risk_profile not in prefs['risk_profiles']:
+        # Check risk level filter (optional)
+        if user_risk_levels and parlay.risk_level:
+            if parlay.risk_level not in user_risk_levels:
                 continue
         
         # Check max legs
-        if parlay.leg_count and parlay.leg_count > prefs['max_parlay_legs']:
+        if parlay.num_legs and parlay.num_legs > prefs['max_parlay_legs']:
             continue
         
-        # Check casinos - ONLY if user has preferences set
-        # If no preferences, show ALL casinos
-        if prefs['preferred_casinos'] and len(prefs['preferred_casinos']) > 0:
-            if parlay_casinos:  # Only filter if parlay has casino info
-                match_found = False
-                for pc in parlay_casinos:
-                    for uc in prefs['preferred_casinos']:
-                        if pc.lower() == uc.lower():
-                            match_found = True
-                            break
-                    if match_found:
-                        break
-                if not match_found:
-                    print(f"  → Filtered out: casino mismatch. Parlay casinos: {parlay_casinos}, User prefs: {prefs['preferred_casinos']}")
-                    continue
-        
-        filtered.append((parlay, parlay_casinos))
+        filtered.append(parlay)
     
-    # Group by casino
+    # 🎯 GROUPER PAR CASINO D'ABORD
     by_casino = {}
-    for parlay_tuple in filtered[:20]:
-        parlay, parlay_casinos = parlay_tuple
-        casinos = parlay_casinos if parlay_casinos else ['Unknown']
-        for casino in casinos:
-            if casino not in by_casino:
-                by_casino[casino] = []
-            by_casino[casino].append(parlay)
+    for parlay in filtered:
+        casino = parlay.casino or 'Unknown'
+        if casino not in by_casino:
+            by_casino[casino] = []
+        by_casino[casino].append(parlay)
     
-    # Build keyboard
+    # Get user's CASHH (bankroll)
+    user_cashh = prefs.get('default_stake', 100)  # Default $100
+    
+    # Build casino list
+    casino_lines = []
     keyboard_buttons = []
-    for casino, casino_parlays in by_casino.items():
+    
+    for casino, casino_parlays in sorted(by_casino.items(), key=lambda x: -len(x[1])):
+        count = len(casino_parlays)
+        best_ev = max(p.expected_value for p in casino_parlays) if casino_parlays else 0
+        
+        casino_lines.append(f"🏢 <b>{casino}</b>: {count} parlays (best EV: {best_ev:+.1f}%)")
+        
+        # Button for each casino
         keyboard_buttons.append([
             types.InlineKeyboardButton(
-                text=f"🏢 {casino} ({len(casino_parlays)} parlays)",
-                callback_data=f"view_casino_{casino[:15]}"
+                text=f"🏢 {casino} ({count})",
+                callback_data=f"parlay_casino_{casino[:20]}"
             )
         ])
     
-    # Add back button
+    # Limit to 6 casinos max
+    keyboard_buttons = keyboard_buttons[:6]
+    
+    # Add settings and menu buttons
     keyboard_buttons.append([
-        types.InlineKeyboardButton(text="« Retour Menu", callback_data="menu")
+        types.InlineKeyboardButton(text="⚙️ Paramètres", callback_data="parlay_settings"),
+        types.InlineKeyboardButton(text="« Menu", callback_data="menu")
     ])
     
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     
     message_text = (
-        f"🎯 <b>PARLAYS D'AUJOURD'HUI</b>\n\n"
-        f"Trouvé {len(filtered)} parlays correspondant à vos préférences:\n\n"
-        f"{chr(10).join(f'🏢 <b>{casino}</b>: {len(ps)} parlays' for casino, ps in by_casino.items())}\n\n"
-        f"Sélectionnez un casino pour voir les parlays disponibles:"
+        f"🎯 <b>PARLAYS DISPONIBLES</b>\n\n"
+        f"💵 Mise configurée: <b>${user_cashh:.2f}</b>\n\n"
+        f"📊 <b>{len(filtered)}</b> parlays sur <b>{len(by_casino)}</b> casinos:\n\n"
+        f"{chr(10).join(casino_lines[:8])}\n\n"
+        f"<i>Sélectionnez un casino pour voir les parlays</i>"
     )
     
-    db.close()
     manager.close()
     
     return {'text': message_text, 'keyboard': keyboard}
@@ -1483,6 +1492,345 @@ async def handle_back_to_parlays(callback: types.CallbackQuery):
         content['text'],
         parse_mode=ParseMode.HTML,
         reply_markup=content['keyboard']
+    )
+
+
+@router.callback_query(F.data.startswith("parlay_casino_"))
+async def handle_parlay_casino(callback: types.CallbackQuery):
+    """View strategies for a specific casino"""
+    await callback.answer()
+    
+    casino = callback.data.replace("parlay_casino_", "")
+    user_id = callback.from_user.id
+    
+    # Get user's CASHH
+    manager = UserPreferencesManager()
+    prefs = await manager.get_preferences(user_id)
+    user_cashh = prefs.get('default_stake', 100)
+    manager.close()
+    
+    # Fetch parlays for this casino
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            SELECT strategy, COUNT(*) as count, 
+                   MAX(expected_value) as best_ev,
+                   MAX(combined_odds) as best_odds
+            FROM parlays
+            WHERE casino LIKE :casino
+                AND created_at >= datetime('now', '-2 days')
+                AND status = 'active'
+            GROUP BY strategy
+            ORDER BY best_ev DESC
+        """), {'casino': f'{casino}%'})
+        
+        strategies = result.fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching casino strategies: {e}")
+        strategies = []
+    finally:
+        db.close()
+    
+    if not strategies:
+        await callback.message.edit_text(
+            f"📭 <b>Aucun parlay pour {casino}</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(text="« Retour", callback_data="back_to_parlays")
+            ]])
+        )
+        return
+    
+    # Build strategy buttons
+    keyboard_buttons = []
+    strategy_lines = []
+    
+    strategy_emojis = {
+        'LOTTERY': '🎰',
+        'AGGRESSIVE': '🔥',
+        'BALANCED': '⚖️',
+        'SAFE': '🛡️'
+    }
+    
+    for strat in strategies:
+        # Find emoji
+        emoji = '🎯'
+        for key, em in strategy_emojis.items():
+            if key in strat.strategy:
+                emoji = em
+                break
+        
+        short_name = strat.strategy.replace('SAME_DAY_', '').replace('CROSS_DAY_', 'X-')
+        best_profit = user_cashh * (strat.best_odds - 1) if strat.best_odds else 0
+        
+        strategy_lines.append(
+            f"{emoji} <b>{short_name}</b>: {strat.count} parlays\n"
+            f"   Best: {strat.best_odds:.2f}x (${best_profit:+.2f} profit)"
+        )
+        
+        keyboard_buttons.append([
+            types.InlineKeyboardButton(
+                text=f"{emoji} {short_name} ({strat.count})",
+                callback_data=f"pc_{casino[:10]}_{strat.strategy[:15]}"
+            )
+        ])
+    
+    keyboard_buttons.append([
+        types.InlineKeyboardButton(text="« Retour aux Casinos", callback_data="back_to_parlays")
+    ])
+    
+    message_text = (
+        f"🏢 <b>{casino.upper()}</b>\n\n"
+        f"💵 Mise: <b>${user_cashh:.2f}</b>\n\n"
+        f"📊 Stratégies disponibles:\n\n"
+        f"{chr(10).join(strategy_lines)}\n\n"
+        f"<i>Sélectionnez une stratégie</i>"
+    )
+    
+    await callback.message.edit_text(
+        message_text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    )
+
+
+@router.callback_query(F.data.startswith("pc_"))
+async def handle_parlay_casino_strategy(callback: types.CallbackQuery):
+    """View parlays for casino + strategy with SIMULATION"""
+    await callback.answer()
+    
+    parts = callback.data.replace("pc_", "").split("_", 1)
+    casino = parts[0] if len(parts) > 0 else ""
+    strategy = parts[1] if len(parts) > 1 else ""
+    user_id = callback.from_user.id
+    
+    # Get user's CASHH
+    manager = UserPreferencesManager()
+    prefs = await manager.get_preferences(user_id)
+    user_cashh = prefs.get('default_stake', 100)
+    manager.close()
+    
+    # Fetch parlays
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            SELECT id, strategy, casino, num_legs, combined_odds, avg_edge,
+                   estimated_win_prob, expected_value, risk_level,
+                   legs_json, created_at
+            FROM parlays
+            WHERE casino LIKE :casino
+                AND strategy LIKE :strategy
+                AND created_at >= datetime('now', '-2 days')
+                AND status = 'active'
+            ORDER BY expected_value DESC
+            LIMIT 5
+        """), {'casino': f'{casino}%', 'strategy': f'{strategy}%'})
+        
+        parlays = result.fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching parlays: {e}")
+        parlays = []
+    finally:
+        db.close()
+    
+    if not parlays:
+        await callback.message.edit_text(
+            f"📭 <b>Aucun parlay</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(text="« Retour", callback_data=f"parlay_casino_{casino}")
+            ]])
+        )
+        return
+    
+    # Build detailed parlays with SIMULATION
+    parlay_details = []
+    for i, parlay in enumerate(parlays, 1):
+        risk_emoji = {'LOW': '🟢', 'MEDIUM': '🟡', 'HIGH': '🔴', 'EXTREME': '💀'}.get(parlay.risk_level, '⚪')
+        
+        # 💰 SIMULATION avec CASHH
+        potential_profit = user_cashh * (parlay.combined_odds - 1)
+        potential_return = user_cashh * parlay.combined_odds
+        ev_dollars = user_cashh * (parlay.expected_value / 100)
+        
+        # Parse legs avec format clair
+        legs_info = ""
+        try:
+            legs = json.loads(parlay.legs_json) if parlay.legs_json else []
+            for leg_num, leg in enumerate(legs, 1):
+                match = leg.get('match', 'Unknown')
+                odds = leg.get('odds', 0)
+                market = leg.get('market', '')  # Ex: "Player Points", "Team Total Corners"
+                selection = leg.get('selection', '')  # Ex: "Over 14.5", "Under 51.5"
+                player = leg.get('player', '')  # 🎯 NOM DU JOUEUR!
+                league = leg.get('league', '') or leg.get('sport', '')
+                
+                # Afficher le joueur si c'est un player prop
+                player_line = ""
+                if player:
+                    player_line = f"\n   👤 Joueur: <b>{player}</b>"
+                elif 'Player' in market:
+                    # Player prop sans nom - indiquer de vérifier sur le casino
+                    player_line = f"\n   👤 <i>(Voir joueur sur le casino)</i>"
+                
+                # Formatter le type de pari clairement
+                if 'Player' in market:
+                    type_label = f"🏀 {market}"  # Player prop
+                elif 'Team' in market or 'Total' in market:
+                    type_label = f"📊 {market}"  # Team/Game totals
+                else:
+                    type_label = f"🎯 {market or 'Moneyline'}"
+                
+                legs_info += (
+                    f"\n\n<b>📌 Pari {leg_num}:</b>\n"
+                    f"   🏟️ {match}\n"
+                    f"   🏆 {league}"
+                    f"{player_line}\n"
+                    f"   {type_label}\n"
+                    f"   ✅ Parier: <b>{selection or 'Voir casino'}</b>\n"
+                    f"   💹 Cote: <b>{odds:.2f}</b>"
+                )
+        except Exception as e:
+            logger.error(f"Error parsing legs: {e}")
+            legs_info = "\n   • Détails non disponibles"
+        
+        parlay_details.append(
+            f"{'═' * 28}\n"
+            f"🎰 <b>PARLAY #{i}</b> {risk_emoji}\n"
+            f"{'─' * 28}\n\n"
+            f"📊 <b>{parlay.num_legs} paris combinés</b>\n"
+            f"🔢 Cote totale: <b>{parlay.combined_odds:.2f}x</b>\n\n"
+            f"💵 Mise: <b>${user_cashh:.2f}</b>\n"
+            f"💰 Si tu gagnes: <b>+${potential_profit:.2f}</b>\n"
+            f"📊 Tu reçois: <b>${potential_return:.2f}</b>\n\n"
+            f"📈 EV estimé: {parlay.expected_value:+.1f}%\n"
+            f"🎯 Chance de gagner: ~{parlay.estimated_win_prob:.0f}%\n"
+            f"{legs_info}"
+        )
+    
+    # Strategy display name
+    display_strategy = strategy.replace('SAME_DAY_', '').replace('CROSS_DAY_', 'X-').replace('_', ' ')
+    
+    message_text = (
+        f"🏢 <b>{casino.upper()}</b> - {display_strategy}\n\n"
+        f"{chr(10).join(parlay_details)}"
+    )
+    
+    # Limit message size
+    if len(message_text) > 4000:
+        message_text = message_text[:3900] + "\n\n<i>... et plus</i>"
+    
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text=f"« Retour {casino}", callback_data=f"parlay_casino_{casino[:20]}")],
+        [types.InlineKeyboardButton(text="« Tous les Casinos", callback_data="back_to_parlays")]
+    ])
+    
+    await callback.message.edit_text(
+        message_text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard
+    )
+
+
+@router.callback_query(F.data.startswith("view_strat_"))
+async def handle_view_strategy(callback: types.CallbackQuery):
+    """View parlays for a specific strategy - GROUPÉ PAR CASINO"""
+    await callback.answer()
+    
+    strategy = callback.data.replace("view_strat_", "")
+    user_id = callback.from_user.id
+    
+    # Fetch parlays for this strategy
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            SELECT id, strategy, casino, num_legs, combined_odds, avg_edge,
+                   estimated_win_prob, expected_value, risk_level,
+                   legs_json, created_at
+            FROM parlays
+            WHERE strategy LIKE :strategy
+                AND created_at >= datetime('now', '-2 days')
+                AND status = 'active'
+            ORDER BY casino, expected_value DESC
+            LIMIT 20
+        """), {'strategy': f'{strategy}%'})
+        
+        parlays = result.fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching strategy parlays: {e}")
+        parlays = []
+    finally:
+        db.close()
+    
+    if not parlays:
+        await callback.message.edit_text(
+            f"📭 <b>Aucun parlay {strategy}</b>\n\n"
+            "Aucun parlay disponible pour cette stratégie.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(text="« Retour", callback_data="back_to_parlays")
+            ]])
+        )
+        return
+    
+    # 🎯 GROUPER PAR CASINO
+    by_casino = {}
+    for parlay in parlays:
+        casino = parlay.casino or 'Unknown'
+        if casino not in by_casino:
+            by_casino[casino] = []
+        by_casino[casino].append(parlay)
+    
+    # Build detailed view par casino
+    sections = []
+    for casino, casino_parlays in by_casino.items():
+        section = f"🏢 <b>{casino}</b>\n"
+        section += "─" * 20 + "\n"
+        
+        for i, parlay in enumerate(casino_parlays[:3], 1):  # Max 3 par casino
+            risk_emoji = {'LOW': '🟢', 'MEDIUM': '🟡', 'HIGH': '🔴', 'EXTREME': '💀'}.get(parlay.risk_level, '⚪')
+            
+            # Parse legs
+            legs_info = ""
+            try:
+                legs = json.loads(parlay.legs_json) if parlay.legs_json else []
+                for leg in legs[:3]:
+                    match = leg.get('match', 'Unknown')[:30]
+                    odds = leg.get('odds', 0)
+                    market = leg.get('market', '')[:15]
+                    legs_info += f"\n   • {match}\n     📊 {market} @ <b>{odds:.2f}</b>"
+            except:
+                legs_info = "\n   • Détails non disponibles"
+            
+            section += (
+                f"\n{i}. {risk_emoji} <b>{parlay.num_legs} legs @ {parlay.combined_odds:.2f}x</b>\n"
+                f"   💰 EV: <b>{parlay.expected_value:+.1f}%</b> | Win: {parlay.estimated_win_prob:.1f}%"
+                f"{legs_info}\n"
+            )
+        
+        sections.append(section)
+    
+    # Strategy display name
+    display_name = strategy.replace('SAME_DAY_', 'Same Day ').replace('CROSS_DAY_', 'Cross Day ').replace('_', ' ')
+    
+    message_text = (
+        f"🎯 <b>{display_name.upper()}</b>\n\n"
+        f"{chr(10).join(sections)}"
+    )
+    
+    # Limiter la taille du message
+    if len(message_text) > 4000:
+        message_text = message_text[:3900] + "\n\n<i>... et plus</i>"
+    
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="« Retour aux Parlays", callback_data="back_to_parlays")],
+        [types.InlineKeyboardButton(text="« Menu", callback_data="menu")]
+    ])
+    
+    await callback.message.edit_text(
+        message_text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard
     )
 
 

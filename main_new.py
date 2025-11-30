@@ -24,7 +24,7 @@ import logging
 
 # Import handlers
 from bot import handlers, admin_handlers, learn_handlers, casino_handlers, language_handlers, bet_handlers, bet_handlers_ev_middle, middle_handlers, add_bet_flow, percent_filters, stake_rounding_handlers, casino_filter_handlers, bet_details_pro, last_calls_pro, learn_guide_pro, debug_command, simulation_handler, middle_outcome_tracker, intelligent_questionnaire, pending_confirmations, parlay_preferences_handler, force_commands_handler, feedback_vouch_handler, admin_feedback_menu
-from bot import daily_confirmation
+from bot import daily_confirmation, web_auth_handler
 from bot.auto_confirm_middleware import AutoconfirmMiddleware
 from bot.nowpayments_handler import NOWPaymentsManager
 from bot.commands_setup import setup_bot_commands, setup_menu_button
@@ -80,6 +80,84 @@ calc_router = Router()
 
 # Early logger initialization (used by load_pending_calls)
 logger = logging.getLogger(__name__)
+
+# ===== CASINO & SPORT FILTER HELPERS =====
+def user_passes_casino_filter(user, casinos: list) -> bool:
+    """
+    Check if user's selected_casinos filter allows these casinos.
+    Returns True if user should receive alert, False if filtered out.
+    If user has no filter (null/empty), allow all casinos.
+    """
+    import json
+    try:
+        selected_casinos_str = user.selected_casinos
+        if not selected_casinos_str:
+            return True  # No filter = allow all
+        
+        selected = json.loads(selected_casinos_str)
+        if not selected:
+            return True  # Empty list = allow all
+        
+        # Normalize casino names for comparison
+        selected_lower = [c.lower().strip() for c in selected]
+        casinos_lower = [c.lower().strip() for c in casinos if c]
+        
+        # Check if ANY casino from alert is in user's selected list
+        for casino in casinos_lower:
+            if casino in selected_lower:
+                return True
+        
+        logger.debug(f"🚫 Casino filter blocked: casinos={casinos}, selected={selected}")
+        return False
+    except Exception as e:
+        logger.warning(f"⚠️ Casino filter error: {e}")
+        return True  # On error, allow through
+
+def user_passes_sport_filter(user, sport: str) -> bool:
+    """
+    Check if user's selected_sports filter allows this sport.
+    Returns True if user should receive alert, False if filtered out.
+    If user has no filter (null/empty), allow all sports.
+    """
+    import json
+    try:
+        selected_sports_str = user.selected_sports
+        if not selected_sports_str:
+            return True  # No filter = allow all
+        
+        selected = json.loads(selected_sports_str)
+        if not selected:
+            return True  # Empty list = allow all
+        
+        # Normalize sport name
+        sport_lower = (sport or "").lower().strip()
+        selected_lower = [s.lower().strip() for s in selected]
+        
+        # Check if sport is in user's selected list
+        if sport_lower in selected_lower:
+            return True
+        
+        # Also check partial matches (e.g., "nba" matches "basketball")
+        sport_mappings = {
+            'nba': 'basketball', 'ncaa basketball': 'basketball', 'ncaab': 'basketball',
+            'nfl': 'football', 'ncaa football': 'football', 'ncaaf': 'football',
+            'nhl': 'hockey', 'ice hockey': 'hockey',
+            'mlb': 'baseball',
+            'mls': 'soccer', 'la liga': 'soccer', 'premier league': 'soccer', 'serie a': 'soccer', 'bundesliga': 'soccer', 'ligue 1': 'soccer',
+            'ufc': 'mma', 'mixed martial arts': 'mma',
+            'atp': 'tennis', 'wta': 'tennis',
+        }
+        
+        # Try mapping
+        for key, mapped in sport_mappings.items():
+            if key in sport_lower and mapped in selected_lower:
+                return True
+        
+        logger.debug(f"🚫 Sport filter blocked: sport={sport}, selected={selected}")
+        return False
+    except Exception as e:
+        logger.warning(f"⚠️ Sport filter error: {e}")
+        return True  # On error, allow through
 
 def generate_call_hash(call_data: dict) -> str:
     """
@@ -235,6 +313,7 @@ def _compute_arb_percent(data: dict) -> float:
         return 0.0
 
 # Include routers (order matters for handler resolution)
+dp.include_router(web_auth_handler.router)  # Web authentication handler
 dp.include_router(force_commands_handler.router)  # Put first to override
 dp.include_router(pending_confirmations.router)  # Put before handlers to have priority
 dp.include_router(parlay_preferences_handler.router)  # Put before handlers to have priority
@@ -851,6 +930,20 @@ async def send_arbitrage_alert_to_users(arb_data: dict):
                 if not (user_min <= arb_percent <= user_max):
                     return False
                 
+                # Check casino filter (both sides of arbitrage)
+                casinos = []
+                for outcome in arb_data.get('outcomes', []):
+                    casino = outcome.get('casino') or outcome.get('bookmaker', '')
+                    if casino:
+                        casinos.append(casino)
+                if casinos and not user_passes_casino_filter(user, casinos):
+                    return False
+                
+                # Check sport filter
+                sport = arb_data.get('sport', '') or arb_data.get('league', '')
+                if not user_passes_sport_filter(user, sport):
+                    return False
+                
                 # Check "Match Today Only" filter
                 if getattr(user, 'match_today_only', False):
                     commence_time_iso = arb_data.get('commence_time')
@@ -1390,6 +1483,22 @@ async def receive_drop(req: Request):
                 # Update stored drop with enriched data
                 DROPS[eid] = enriched
                 print(f"🔗 Background enrichment done: {len(enriched.get('deep_links', {}))} deep links")
+                
+                # ✅ Also update the database with enriched data (for web dashboard)
+                try:
+                    db_update = SessionLocal()
+                    ev_update = db_update.query(DropEvent).filter(DropEvent.event_id == eid).first()
+                    if ev_update:
+                        ev_update.payload = enriched
+                        db_update.commit()
+                        print(f"💾 DB updated with formatted_time: {enriched.get('formatted_time', 'N/A')}")
+                except Exception as db_err:
+                    print(f"⚠️ DB update failed: {db_err}")
+                finally:
+                    try:
+                        db_update.close()
+                    except:
+                        pass
             except Exception as e:
                 print(f"⚠️ Background enrichment failed: {e}")
         
@@ -1406,10 +1515,9 @@ async def receive_drop(req: Request):
     DROPS[eid] = d
     try:
         drop_id = record_drop(d)
-        if drop_id:
-            on_drop_received(drop_id)  # 🔥 Génère parlays en temps réel!
+        # ⚡ Parlays générés APRÈS envoi aux users (voir fin de fonction)
     except Exception:
-        pass
+        drop_id = None
     # Persist to DB (duplicate already detected above)
     db = SessionLocal()
     try:
@@ -1502,6 +1610,13 @@ async def receive_drop(req: Request):
         except Exception as e:
             print(f"❌ ERROR: Failed to send admin preview: {e}")
     
+    # ⚡ APRÈS envoi: générer parlays en background (non-bloquant)
+    if drop_id:
+        try:
+            asyncio.create_task(asyncio.to_thread(on_drop_received, drop_id))
+        except Exception:
+            pass  # Don't block if parlay generation fails
+    
     return {"ok": True}
 
 
@@ -1530,10 +1645,9 @@ async def receive_email(req: Request):
     DROPS[eid] = drop
     try:
         drop_id = record_drop(drop)
-        if drop_id:
-            on_drop_received(drop_id)  # 🔥 Génère parlays en temps réel!
+        # ⚡ Parlays générés APRÈS envoi aux users (voir fin de fonction)
     except Exception:
-        pass
+        drop_id = None
     # Persist to DB for durability (prefer parsed fields if available)
     db = SessionLocal()
     try:
@@ -1592,6 +1706,13 @@ async def receive_email(req: Request):
                 pass
     except:
         pass
+    
+    # ⚡ APRÈS envoi: générer parlays en background (non-bloquant)
+    if drop_id:
+        try:
+            asyncio.create_task(asyncio.to_thread(on_drop_received, drop_id))
+        except Exception:
+            pass  # Don't block if parlay generation fails
     
     return {"ok": True, "event_id": eid}
 
@@ -1678,6 +1799,7 @@ async def handle_positive_ev(req: Request):
                 # Store full parsed data for calculator/CASHH changes
                 'bookmaker': parsed.get('bookmaker'),
                 'selection': parsed.get('selection'),
+                'player': parsed.get('player'),  # 🎯 NOM DU JOUEUR pour parlays!
                 'odds': parsed.get('odds'),
                 'ev_percent': float(parsed.get('ev_percent') or 0.0),
                 'team1': parsed.get('team1'),
@@ -1698,10 +1820,10 @@ async def handle_positive_ev(req: Request):
             DROPS[eid] = drop_record
             # Persist to DB for Last Calls
             drop_id = record_drop(drop_record)
-            if drop_id:
-                on_drop_received(drop_id)  # 🔥 Génère parlays en temps réel!
+            # ⚡ Parlays générés APRÈS envoi aux users (non-bloquant)
         except Exception as e:
             logger.error(f"Failed to record Good EV drop: {e}")
+            drop_id = None
         
         # Check if EV meets system minimum
         try:
@@ -1763,6 +1885,18 @@ async def handle_positive_ev(req: Request):
                     user_min_ev = user.min_good_ev_percent or 0.5
                     user_max_ev = user.max_good_ev_percent or 100.0
                     if not (user_min_ev <= ev_percent <= user_max_ev):
+                        continue
+                    
+                    # Check casino filter
+                    bookmaker = parsed.get('bookmaker', '')
+                    if not user_passes_casino_filter(user, [bookmaker]):
+                        logger.info(f"🎰 Good EV: User {user.telegram_id} SKIPPED - casino filter (bookmaker: {bookmaker})")
+                        continue
+                    
+                    # Check sport filter
+                    sport = parsed.get('sport', '') or parsed.get('league', '')
+                    if not user_passes_sport_filter(user, sport):
+                        logger.info(f"🏅 Good EV: User {user.telegram_id} SKIPPED - sport filter (sport: {sport})")
                         continue
                     
                     # Check "Match Today Only" filter
@@ -1899,6 +2033,14 @@ async def handle_positive_ev(req: Request):
                 logger.info(f"Good Odds alert sent to {sent_count} users")
             except Exception:
                 print(f"Good Odds alert sent to {sent_count} users")
+            
+            # ⚡ APRÈS envoi: générer parlays en background (non-bloquant)
+            if drop_id:
+                try:
+                    asyncio.create_task(asyncio.to_thread(on_drop_received, drop_id))
+                except Exception:
+                    pass  # Don't block if parlay generation fails
+            
             return {"status": "success", "sent": sent_count}
             
         finally:
@@ -2020,10 +2162,10 @@ async def handle_middle(req: Request):
             DROPS[eid] = drop_record
             # Persist to DB for Last Calls
             drop_id = record_drop(drop_record)
-            if drop_id:
-                on_drop_received(drop_id)  # 🔥 Génère parlays en temps réel!
+            # ⚡ Parlays générés APRÈS envoi aux users (non-bloquant)
         except Exception as e:
             logger.error(f"Failed to record Middle drop: {e}")
+            drop_id = None
         
         # DEDUPLICATION CHECK - Block duplicate Middle calls
         if is_duplicate_call(parsed):
@@ -2075,6 +2217,19 @@ async def handle_middle(req: Request):
                     user_min_middle = user.min_middle_percent or 0.5
                     user_max_middle = user.max_middle_percent or 100.0
                     if not (user_min_middle <= middle_percent <= user_max_middle):
+                        continue
+                    
+                    # Check casino filter (both sides of middle)
+                    bookmaker_a = parsed.get('side_a', {}).get('bookmaker', '')
+                    bookmaker_b = parsed.get('side_b', {}).get('bookmaker', '')
+                    if not user_passes_casino_filter(user, [bookmaker_a, bookmaker_b]):
+                        logger.info(f"🎰 Middle: User {user.telegram_id} SKIPPED - casino filter (casinos: {bookmaker_a}, {bookmaker_b})")
+                        continue
+                    
+                    # Check sport filter
+                    sport = parsed.get('sport', '') or parsed.get('league', '')
+                    if not user_passes_sport_filter(user, sport):
+                        logger.info(f"🏅 Middle: User {user.telegram_id} SKIPPED - sport filter (sport: {sport})")
                         continue
                     
                     # Check "Match Today Only" filter
@@ -2201,6 +2356,14 @@ async def handle_middle(req: Request):
                 logger.info(f"Middle alert sent to {sent_count} users")
             except Exception:
                 print(f"Middle alert sent to {sent_count} users")
+            
+            # ⚡ APRÈS envoi: générer parlays en background (non-bloquant)
+            if drop_id:
+                try:
+                    asyncio.create_task(asyncio.to_thread(on_drop_received, drop_id))
+                except Exception:
+                    pass  # Don't block if parlay generation fails
+            
             return {"status": "success", "sent": sent_count}
             
         finally:
