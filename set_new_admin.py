@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Set new super admin in database
+Set new super admin in database - using raw SQL
 """
 from database import SessionLocal
-from models.user import User, TierLevel
 from sqlalchemy import text
 
 NEW_ADMIN_ID = 8004919557
@@ -12,36 +11,33 @@ def set_new_admin():
     db = SessionLocal()
     try:
         # Check if user exists
-        user = db.query(User).filter(User.telegram_id == NEW_ADMIN_ID).first()
+        result = db.execute(text("SELECT telegram_id, role FROM users WHERE telegram_id = :tid"), {"tid": NEW_ADMIN_ID}).fetchone()
         
-        if not user:
+        if not result:
             # Create new user
-            user = User(
-                telegram_id=NEW_ADMIN_ID,
-                username="new_admin",
-                role="super_admin",
-                tier=TierLevel.PREMIUM,
-                free_access=True,
-                is_active=True
-            )
-            db.add(user)
+            db.execute(text("""
+                INSERT INTO users (telegram_id, username, role, tier, free_access, is_active)
+                VALUES (:tid, 'new_admin', 'super_admin', 'premium', 1, 1)
+            """), {"tid": NEW_ADMIN_ID})
             print(f"✅ Created new super_admin user: {NEW_ADMIN_ID}")
         else:
             # Update existing user
-            user.role = "super_admin"
-            user.tier = TierLevel.PREMIUM
-            user.free_access = True
+            db.execute(text("""
+                UPDATE users 
+                SET role = 'super_admin', tier = 'premium', free_access = 1
+                WHERE telegram_id = :tid
+            """), {"tid": NEW_ADMIN_ID})
             print(f"✅ Updated user {NEW_ADMIN_ID} to super_admin")
         
         db.commit()
         
         # Verify
-        user = db.query(User).filter(User.telegram_id == NEW_ADMIN_ID).first()
+        user = db.execute(text("SELECT telegram_id, role, tier, free_access FROM users WHERE telegram_id = :tid"), {"tid": NEW_ADMIN_ID}).fetchone()
         print(f"📊 User details:")
-        print(f"   - Telegram ID: {user.telegram_id}")
-        print(f"   - Role: {user.role}")
-        print(f"   - Tier: {user.tier}")
-        print(f"   - Free Access: {user.free_access}")
+        print(f"   - Telegram ID: {user[0]}")
+        print(f"   - Role: {user[1]}")
+        print(f"   - Tier: {user[2]}")
+        print(f"   - Free Access: {user[3]}")
         
     finally:
         db.close()
