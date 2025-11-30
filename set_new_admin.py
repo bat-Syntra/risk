@@ -17,14 +17,14 @@ def set_new_admin():
             # Create new user
             db.execute(text("""
                 INSERT INTO users (telegram_id, username, role, tier, free_access, is_active)
-                VALUES (:tid, 'new_admin', 'super_admin', 'premium', 1, 1)
+                VALUES (:tid, 'new_admin', 'super_admin', 'PREMIUM', 1, 1)
             """), {"tid": NEW_ADMIN_ID})
             print(f"✅ Created new super_admin user: {NEW_ADMIN_ID}")
         else:
             # Update existing user
             db.execute(text("""
                 UPDATE users 
-                SET role = 'super_admin', tier = 'premium', free_access = 1
+                SET role = 'super_admin', tier = 'PREMIUM', free_access = 1
                 WHERE telegram_id = :tid
             """), {"tid": NEW_ADMIN_ID})
             print(f"✅ Updated user {NEW_ADMIN_ID} to super_admin")
