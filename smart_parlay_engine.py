@@ -111,6 +111,8 @@ class SmartParlayEngine:
                             'edge': edge,
                             'bet_type': bet_type,
                             'match_date': match_date,
+                            'formatted_time': payload.get('formatted_time'),
+                            'commence_time': payload.get('commence_time'),
                             'received_at': drop.received_at
                         })
             
@@ -120,18 +122,28 @@ class SmartParlayEngine:
                     side = payload.get(side_key, {})
                     odds = self._parse_odds(side.get('odds', 0))
                     if odds > 1.0:
+                        # Build selection with Over/Under + line
+                        team = side.get('team', '')  # "Over" or "Under"
+                        line = side.get('line', side.get('selection', ''))
+                        if team and line and not str(line).lower().startswith(('over', 'under')):
+                            selection = f"{team} {line}"
+                        else:
+                            selection = side.get('selection', line)
+                        
                         legs.append({
                             'drop_id': drop.id,
                             'match': drop.match or payload.get('match', 'Unknown'),
                             'league': drop.league or payload.get('league', ''),
                             'sport': sport,
                             'market': side.get('market', drop.market or ''),
-                            'selection': side.get('selection', f"{side.get('line', '')}"),
+                            'selection': selection,
                             'bookmaker': side.get('bookmaker', ''),
                             'odds': odds,
                             'edge': edge,
                             'bet_type': bet_type,
                             'match_date': match_date,
+                            'formatted_time': payload.get('formatted_time'),
+                            'commence_time': payload.get('commence_time'),
                             'received_at': drop.received_at
                         })
             
@@ -162,6 +174,8 @@ class SmartParlayEngine:
                         'edge': edge,
                         'bet_type': bet_type,
                         'match_date': match_date,
+                        'formatted_time': payload.get('formatted_time'),
+                        'commence_time': payload.get('commence_time'),
                         'received_at': drop.received_at
                     })
             
