@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: arbitrage-bot
+    restart: always
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql://arbitrage_user:${DB_PASSWORD}@db:5432/arbitrage_bot
+      - PORT=${PORT:-8080}
+    depends_on:
+      - db
+    ports:
+      - "${EXPOSE_PORT:-8080}:8080"
+
+  db:
+    image: postgres:15-alpine
+    container_name: arbitrage-db
+    restart: always
+    environment:
+      - POSTGRES_DB=arbitrage_bot
+      - POSTGRES_USER=arbitrage_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+
+volumes:
+  dbdata:

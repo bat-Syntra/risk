@@ -1,0 +1,149 @@
+{
+  "logo_directory": "logos/",
+  "casinos": [
+    {
+      "name": "888sport",
+      "aliases": ["888", "888 sport", "888-sport"],
+      "emoji": "🏛️",
+      "logo_file": "888sport.png",
+      "colors": ["orange", "#ff8800"],
+      "ocr_patterns": ["888sport", "888 sport"]
+    },
+    {
+      "name": "bet365",
+      "aliases": ["bet 365", "bet105", "b365"],
+      "emoji": "📗",
+      "logo_file": "bet365.png",
+      "colors": ["green", "yellow"],
+      "ocr_patterns": ["bet365", "bet 365", "bet105"]
+    },
+    {
+      "name": "BET99",
+      "aliases": ["bet99", "bet 99", "bet-99", "b99"],
+      "emoji": "💯",
+      "logo_file": "BET99.png",
+      "colors": ["red", "white"],
+      "ocr_patterns": ["BET99", "bet99", "bet 99"]
+    },
+    {
+      "name": "Betsson",
+      "aliases": ["betson"],
+      "emoji": "🔶",
+      "logo_file": "Betsson.png",
+      "colors": ["orange"],
+      "ocr_patterns": ["betsson", "betson", "Betsson"]
+    },
+    {
+      "name": "BetVictor",
+      "aliases": ["bet victor", "betvictor"],
+      "emoji": "🎯",
+      "logo_file": "BetVictor.png",
+      "colors": ["black", "gold"],
+      "ocr_patterns": ["BetVictor", "bet victor"]
+    },
+    {
+      "name": "Betway",
+      "aliases": ["bet way"],
+      "emoji": "⚡",
+      "logo_file": "Betway.png",
+      "colors": ["black", "blue"],
+      "ocr_patterns": ["Betway", "bet way"]
+    },
+    {
+      "name": "bwin",
+      "aliases": ["b win"],
+      "emoji": "⚫",
+      "logo_file": "bwin.png",
+      "colors": ["black", "yellow"],
+      "ocr_patterns": ["bwin", "b win"]
+    },
+    {
+      "name": "Casumo",
+      "aliases": [],
+      "emoji": "💜",
+      "logo_file": "Casumo.png",
+      "colors": ["purple"],
+      "ocr_patterns": ["Casumo", "casumo"]
+    },
+    {
+      "name": "Coolbet",
+      "aliases": ["cool bet", "coobet", "coouser", "costser", "colbet", "cootsecr", "coolser"],
+      "emoji": "❄️",
+      "logo_file": "Coolbet.png",
+      "colors": ["blue", "white"],
+      "ocr_patterns": ["coolbet", "cool bet", "coouser", "costser", "colbet"]
+    },
+    {
+      "name": "iBet",
+      "aliases": ["ibet", "i bet"],
+      "emoji": "🧱",
+      "logo_file": "ibet.png",
+      "colors": ["red"],
+      "ocr_patterns": ["iBet", "ibet", "i bet"]
+    },
+    {
+      "name": "Jackpot.bet",
+      "aliases": ["jackpot bet", "jackpotbet"],
+      "emoji": "💎",
+      "logo_file": "Jackpot.bet.png",
+      "colors": ["blue", "diamond"],
+      "ocr_patterns": ["Jackpot.bet", "jackpot bet"]
+    },
+    {
+      "name": "LeoVegas",
+      "aliases": ["leo vegas", "leovegas"],
+      "emoji": "🦁",
+      "logo_file": "LeoVegas.png",
+      "colors": ["orange", "white"],
+      "ocr_patterns": ["LeoVegas", "leo vegas"]
+    },
+    {
+      "name": "Mise-o-jeu",
+      "aliases": ["miseojeu", "mise o jeu"],
+      "emoji": "🎟️",
+      "logo_file": "Mise-o-jeu.png",
+      "colors": ["red", "white"],
+      "ocr_patterns": ["Mise-o-jeu", "mise o jeu", "miseojeu"]
+    },
+    {
+      "name": "Pinnacle",
+      "aliases": ["pinacle"],
+      "emoji": "📈",
+      "logo_file": "Pinnacle.png",
+      "colors": ["orange"],
+      "ocr_patterns": ["Pinnacle", "pinacle"]
+    },
+    {
+      "name": "Proline",
+      "aliases": ["pro line"],
+      "emoji": "✨",
+      "logo_file": "Proline.png",
+      "colors": ["blue", "yellow"],
+      "ocr_patterns": ["Proline", "pro line"]
+    },
+    {
+      "name": "Sports Interaction",
+      "aliases": ["sportsinteraction", "sports-interaction", "sia", "sports inter"],
+      "emoji": "🏒",
+      "logo_file": "Sports_Interaction.png",
+      "colors": ["red", "black"],
+      "ocr_patterns": ["Sports Interaction", "sportsinteraction", "sports inter"]
+    },
+    {
+      "name": "Stake",
+      "aliases": [],
+      "emoji": "🟣",
+      "logo_file": "Stake.png",
+      "colors": ["purple", "black"],
+      "ocr_patterns": ["Stake", "stake"]
+    },
+    {
+      "name": "TonyBet",
+      "aliases": ["tony bet", "tonybet"],
+      "emoji": "🏦",
+      "logo_file": "TonyBet.png",
+      "colors": ["green", "white"],
+      "ocr_patterns": ["TonyBet", "tony bet"]
+    }
+  ]
+}
