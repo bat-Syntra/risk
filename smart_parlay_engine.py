@@ -248,11 +248,28 @@ class SmartParlayEngine:
         for data in drops_data:
             all_legs.extend(data['legs'])
         
+        # 🧹 FILTER OUT EXPIRED MATCHES (already started)
+        now = datetime.now(timezone.utc) if hasattr(timezone, 'utc') else datetime.utcnow()
+        active_legs = []
+        for leg in all_legs:
+            commence_time = leg.get('commence_time')
+            if commence_time:
+                try:
+                    match_time = datetime.fromisoformat(str(commence_time).replace('Z', '+00:00'))
+                    if match_time > now:
+                        active_legs.append(leg)  # Match hasn't started yet
+                except:
+                    active_legs.append(leg)  # Can't parse, include it
+            else:
+                active_legs.append(leg)  # No time info, include it
+        
+        all_legs = active_legs
+        
         if len(all_legs) < 2:
-            logger.info(f"Not enough legs for parlays ({len(all_legs)} found)")
+            logger.info(f"Not enough active legs for parlays ({len(all_legs)} found)")
             return []
         
-        logger.info(f"🎰 Found {len(all_legs)} legs from {len(drops_data)} drops")
+        logger.info(f"🎰 Found {len(all_legs)} active legs from {len(drops_data)} drops")
         
         parlays = []
         
