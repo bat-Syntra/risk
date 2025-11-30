@@ -78,6 +78,20 @@ dp = Dispatcher(storage=MemoryStorage())
 app = FastAPI()
 calc_router = Router()
 
+# CORS for web dashboard
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict to your domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Web Dashboard API
+from api.web_api import router as web_router
+app.include_router(web_router)
+
 # Early logger initialization (used by load_pending_calls)
 logger = logging.getLogger(__name__)
 
