@@ -381,6 +381,10 @@ class UserSettingsUpdate(BaseModel):
     # Stake rounding
     stakeRounding: Optional[int] = None
     roundingMode: Optional[str] = None
+    # Stake randomizer
+    randomizerEnabled: Optional[bool] = None
+    randomizerAmounts: Optional[str] = None
+    randomizerMode: Optional[str] = None
     # Feature toggles
     enableGoodOdds: Optional[bool] = None
     enableMiddle: Optional[bool] = None
@@ -434,6 +438,11 @@ async def get_user_settings(telegram_id: int):
                 "stakeRounding": user.stake_rounding or 0,
                 "roundingMode": user.rounding_mode or "nearest",
                 
+                # Stake randomizer
+                "randomizerEnabled": user.stake_randomizer_enabled or False,
+                "randomizerAmounts": user.stake_randomizer_amounts or "",
+                "randomizerMode": user.stake_randomizer_mode or "random",
+                
                 # Feature toggles
                 "enableGoodOdds": user.enable_good_odds if user.enable_good_odds is not None else False,
                 "enableMiddle": user.enable_middle if user.enable_middle is not None else False,
@@ -481,6 +490,12 @@ async def update_user_settings(telegram_id: int, settings: UserSettingsUpdate):
             user.stake_rounding = settings.stakeRounding
         if settings.roundingMode is not None:
             user.rounding_mode = settings.roundingMode
+        if settings.randomizerEnabled is not None:
+            user.stake_randomizer_enabled = settings.randomizerEnabled
+        if settings.randomizerAmounts is not None:
+            user.stake_randomizer_amounts = settings.randomizerAmounts
+        if settings.randomizerMode is not None:
+            user.stake_randomizer_mode = settings.randomizerMode
         if settings.enableGoodOdds is not None:
             user.enable_good_odds = settings.enableGoodOdds
         if settings.enableMiddle is not None:
