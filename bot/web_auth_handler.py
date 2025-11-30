@@ -9,7 +9,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from database import SessionLocal
-from models.user import User
+from models.user import User, TierLevel
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -55,11 +55,11 @@ async def cmd_start_with_auth(message: types.Message):
                 )
                 return
             
-            # Only ALPHA tier or admin can access web dashboard
+            # Only PREMIUM tier, free_access, or admin can access web dashboard
             is_admin = message.from_user.id in [6029059837, 8213628656]  # Admin IDs
-            is_alpha = user.subscription_tier == 'alpha'
+            is_premium = user.tier == TierLevel.PREMIUM or user.free_access
             
-            if not is_admin and not is_alpha:
+            if not is_admin and not is_premium:
                 await message.reply(
                     "❌ <b>ALPHA Access Required</b>\n\n"
                     "🔒 The web dashboard is exclusively available for <b>ALPHA</b> members.\n\n"
