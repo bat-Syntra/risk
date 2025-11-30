@@ -139,6 +139,15 @@ async def get_live_calls(type: str = "all", limit: int = 50):
                     if match:
                         player = match.group(1).strip()
             
+            # Get match time from DB column first, then payload
+            match_time = None
+            if hasattr(call, 'match_time') and call.match_time:
+                match_time = call.match_time.isoformat()
+            elif payload.get("formatted_time"):
+                match_time = payload.get("formatted_time")
+            elif payload.get("commence_time"):
+                match_time = payload.get("commence_time")
+            
             result.append({
                 "id": call.id,
                 "eventId": call.event_id,
@@ -148,7 +157,7 @@ async def get_live_calls(type: str = "all", limit: int = 50):
                 "match": call.match,
                 "league": call.league,
                 "market": call.market,
-                "matchTime": payload.get("formatted_time") or payload.get("commence_time"),
+                "matchTime": match_time,
                 "player": player,  # Player name for player props
                 "payload": payload,
             })
