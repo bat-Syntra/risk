@@ -1585,6 +1585,24 @@ async def receive_drop(req: Request):
                 print(f"💾 DEBUG: Stored drop {eid} with id={ev.id} (arb%={ev.arb_percentage})")
             except Exception:
                 pass
+            
+            # 🔴 LIVE: Notify web dashboard via WebSocket
+            try:
+                from api.web_api import notify_new_call
+                asyncio.create_task(notify_new_call({
+                    "id": ev.id,
+                    "eventId": eid,
+                    "betType": "arbitrage",
+                    "arbPercentage": ap,
+                    "match": ev.match,
+                    "league": ev.league,
+                    "market": ev.market,
+                    "matchTime": d.get('formatted_time') or d.get('commence_time'),
+                    "payload": d
+                }))
+                print(f"🔴 LIVE: Notified web clients of new call")
+            except Exception as ws_err:
+                print(f"⚠️ WebSocket notify failed: {ws_err}")
     except Exception:
         db.rollback()
     finally:

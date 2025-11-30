@@ -3,16 +3,71 @@ Web Dashboard API Endpoints
 These endpoints are called by the web dashboard (risk0-web)
 """
 import json
+import asyncio
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Set
 from database import SessionLocal
 from models.user import User
 from models.drop_event import DropEvent
 from models.bet import UserBet
 
 router = APIRouter(prefix="/api/web", tags=["web"])
+
+# WebSocket connections manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"🔌 WebSocket connected. Total: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        print(f"🔌 WebSocket disconnected. Total: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        """Send message to all connected clients"""
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                disconnected.append(connection)
+        
+        # Clean up disconnected
+        for conn in disconnected:
+            self.disconnect(conn)
+
+manager = ConnectionManager()
+
+# Function to notify all connected clients of a new call
+async def notify_new_call(call_data: dict):
+    """Call this when a new drop is received to notify web clients instantly"""
+    await manager.broadcast({
+        "type": "new_call",
+        "data": call_data
+    })
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket for real-time updates"""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive, wait for messages
+            data = await websocket.receive_text()
+            # Echo back or handle commands
+            if data == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 
 class BetRequest(BaseModel):
