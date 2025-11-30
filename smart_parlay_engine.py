@@ -8,7 +8,7 @@ Génère des parlays intelligents à partir de TOUS les drops (Arbitrage, Middle
 - Calcule EV réel de chaque parlay
 """
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from database import SessionLocal
 from sqlalchemy import text
 from typing import List, Dict, Optional
