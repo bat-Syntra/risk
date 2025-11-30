@@ -89,8 +89,25 @@ app.add_middleware(
 )
 
 # Web Dashboard API
-from api.web_api import router as web_router
+from api.web_api import router as web_router, manager as ws_manager
 app.include_router(web_router)
+
+# WebSocket endpoint (must be on main app, not router for CORS)
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws/live")
+async def websocket_live_endpoint(websocket: WebSocket):
+    """WebSocket for real-time call updates"""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception:
+        ws_manager.disconnect(websocket)
 
 # Early logger initialization (used by load_pending_calls)
 logger = logging.getLogger(__name__)
