@@ -70,8 +70,8 @@ def check_pending_confirmations_count(user_id: int) -> int:
 
 async def block_if_pending_confirmations(message: types.Message) -> bool:
     """
-    Bloque l'utilisateur et affiche le message de confirmations en attente
-    Returns: True if blocked, False if OK to continue
+    Affiche SEULEMENT un badge de confirmations en attente, ne bloque PAS le menu
+    Returns: Always False (never blocks)
     """
     global _notified_today, _last_reset_date
     
@@ -85,11 +85,11 @@ async def block_if_pending_confirmations(message: types.Message) -> bool:
     pending_count = check_pending_confirmations_count(user_id)
     
     if pending_count == 0:
-        return False  # No blocking needed
+        return False  # No confirmations needed
     
-    # Check if already notified today
+    # Check if already notified today - DON'T show message again
     if user_id in _notified_today:
-        return True  # Block but don't send message again
+        return False  # Don't block, don't show message
     
     # Mark as notified
     _notified_today[user_id] = True
@@ -102,21 +102,19 @@ async def block_if_pending_confirmations(message: types.Message) -> bool:
     finally:
         db.close()
     
-    # Send blocking message
+    # Send notification message (not blocking)
     if lang == 'fr':
         text = (
-            f"⏰ <b>CONFIRMATIONS NÉCESSAIRES</b>\n\n"
-            f"Tu as <b>{pending_count} bet(s) d'hier</b> à confirmer.\n\n"
-            f"❌ <b>L'accès au menu est bloqué</b> tant que tu n'as pas confirmé les résultats.\n\n"
-            f"💡 Clique sur le bouton ci-dessous pour commencer:"
+            f"⏰ <b>RAPPEL: CONFIRMATIONS EN ATTENTE</b>\n\n"
+            f"Tu as <b>{pending_count} bet(s)</b> à confirmer.\n\n"
+            f"💡 Clique sur le bouton pour recevoir tous les questionnaires:"
         )
         btn_text = f"✅ Confirmer {pending_count} bet(s)"
     else:
         text = (
-            f"⏰ <b>CONFIRMATIONS NEEDED</b>\n\n"
-            f"You have <b>{pending_count} bet(s) from yesterday</b> to confirm.\n\n"
-            f"❌ <b>Menu access is blocked</b> until you confirm the results.\n\n"
-            f"💡 Click the button below to start:"
+            f"⏰ <b>REMINDER: PENDING CONFIRMATIONS</b>\n\n"
+            f"You have <b>{pending_count} bet(s)</b> to confirm.\n\n"
+            f"💡 Click the button to receive all questionnaires:"
         )
         btn_text = f"✅ Confirm {pending_count} bet(s)"
     
@@ -125,7 +123,7 @@ async def block_if_pending_confirmations(message: types.Message) -> bool:
     ]])
     
     await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
-    return True  # Blocked
+    return False  # Don't block menu - just show notification
 
 
 @router.callback_query(F.data == "start_confirmations")
