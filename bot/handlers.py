@@ -60,6 +60,7 @@ async def start_command(message: types.Message, state: FSMContext):
     from bot.pending_confirmations import check_pending_confirmations_count
     pending_count = check_pending_confirmations_count(message.from_user.id)
     has_pending = pending_count > 0
+    logger.info(f"[MENU] User {message.from_user.id} - pending_count={pending_count}, has_pending={has_pending}")
     
     user_tg = message.from_user
     db = SessionLocal()
