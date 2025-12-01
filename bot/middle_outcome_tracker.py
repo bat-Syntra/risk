@@ -285,10 +285,10 @@ async def callback_ev_outcome(callback: types.CallbackQuery):
 @router.callback_query(F.data.startswith("middle_outcome_"))
 async def callback_middle_outcome(callback: types.CallbackQuery):
     """
-    Handle middle outcome confirmation (jackpot, arb, or lost).
+    Handle middle outcome confirmation (jackpot, casino1, casino2, arb, or lost).
     
     Format: middle_outcome_<bet_id>_<outcome>
-    where outcome = 'jackpot' (both won), 'arb' (one won, min profit), or 'lost' (error)
+    where outcome = 'jackpot' (both won), 'casino1', 'casino2', 'arb' (one won, min profit), or 'lost' (error)
     """
     await callback.answer()
     
@@ -299,9 +299,9 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
             return
         
         bet_id = int(parts[2])
-        outcome = parts[3]  # 'jackpot', 'arb', or 'lost'
+        outcome = parts[3]  # 'jackpot', 'casino1', 'casino2', 'arb', or 'lost'
         
-        if outcome not in ['jackpot', 'arb', 'lost']:
+        if outcome not in ['jackpot', 'casino1', 'casino2', 'arb', 'lost']:
             await callback.answer("❌ Outcome invalide", show_alert=True)
             return
         
@@ -322,8 +322,9 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
             user = db.query(User).filter(User.telegram_id == bet.user_id).first()
             lang = user.language if user else 'en'
             
-            # Calculate min_profit (arbitrage profit) from drop data
-            min_profit = 0.0
+            # Calculate profits for each scenario from drop data
+            casino1_profit = 0.0
+            casino2_profit = 0.0
             if bet.drop_event and bet.drop_event.payload:
                 try:
                     import json
@@ -335,11 +336,12 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
                     if side_a and side_b and 'odds' in side_a and 'odds' in side_b and 'line' in side_a and 'line' in side_b:
                         from utils.middle_calculator import classify_middle_type
                         cls = classify_middle_type(side_a, side_b, bet.total_stake)
-                        min_profit = min(cls['profit_scenario_1'], cls['profit_scenario_3'])
+                        casino1_profit = cls['profit_scenario_1']  # Side A wins, Side B loses
+                        casino2_profit = cls['profit_scenario_3']  # Side B wins, Side A loses
                     else:
                         logger.warning(f"Missing required fields in side_a or side_b for bet {bet.id}")
                 except Exception as e:
-                    logger.warning(f"Could not calculate min_profit: {e}")
+                    logger.warning(f"Could not calculate profits: {e}")
             
             # Update bet based on outcome
             if outcome == 'jackpot':
@@ -363,24 +365,44 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
                         f"🔥 Congratulations! 🔥"
                     )
             
-            elif outcome == 'arb':
-                # ✅ ARBITRAGE! Un seul a gagné - profit minimum garanti
-                bet.actual_profit = min_profit
+            elif outcome in ['casino1', 'arb']:
+                # ✅ Casino 1 a gagné - profit arbitrage
+                bet.actual_profit = casino1_profit if outcome == 'casino1' else min(casino1_profit, casino2_profit)
                 bet.status = 'won'
                 
                 if lang == 'fr':
                     result_text = (
-                        f"\n\n✅ <b>BET MIDDLE CONFIRMÉ</b>\n\n"
-                        f"✅ 1 seul a gagné (arbitrage)\n"
-                        f"💰 Profit minimum: <b>${bet.actual_profit:+.2f}</b>\n\n"
-                        f"💡 Tu es quand même gagnant! 💚"
+                        f"\n\n✅ <b>MIDDLE CONFIRMÉ</b>\n\n"
+                        f"✅ Casino A a gagné (arbitrage)\n"
+                        f"💰 Profit: <b>${bet.actual_profit:+.2f}</b>\n\n"
+                        f"💡 Tu es gagnant! 💚"
                     )
                 else:
                     result_text = (
-                        f"\n\n✅ <b>MIDDLE BET CONFIRMED</b>\n\n"
-                        f"✅ Only 1 won (arbitrage)\n"
-                        f"💰 Minimum profit: <b>${bet.actual_profit:+.2f}</b>\n\n"
-                        f"💡 You still won! 💚"
+                        f"\n\n✅ <b>MIDDLE CONFIRMED</b>\n\n"
+                        f"✅ Casino A won (arbitrage)\n"
+                        f"💰 Profit: <b>${bet.actual_profit:+.2f}</b>\n\n"
+                        f"💡 You won! 💚"
+                    )
+            
+            elif outcome == 'casino2':
+                # ✅ Casino 2 a gagné - profit arbitrage
+                bet.actual_profit = casino2_profit
+                bet.status = 'won'
+                
+                if lang == 'fr':
+                    result_text = (
+                        f"\n\n✅ <b>MIDDLE CONFIRMÉ</b>\n\n"
+                        f"✅ Casino B a gagné (arbitrage)\n"
+                        f"💰 Profit: <b>${bet.actual_profit:+.2f}</b>\n\n"
+                        f"💡 Tu es gagnant! 💚"
+                    )
+                else:
+                    result_text = (
+                        f"\n\n✅ <b>MIDDLE CONFIRMED</b>\n\n"
+                        f"✅ Casino B won (arbitrage)\n"
+                        f"💰 Profit: <b>${bet.actual_profit:+.2f}</b>\n\n"
+                        f"💡 You won! 💚"
                     )
             
             else:  # outcome == 'lost'

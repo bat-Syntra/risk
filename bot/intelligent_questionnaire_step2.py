@@ -101,49 +101,63 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
         # Middle bet questions
         jackpot_profit = bet.expected_profit if bet.expected_profit else 0
         
-        # Calculate min_profit
-        min_profit = 0.0
+        # Calculate profits for each scenario
+        casino1_profit = 0.0
+        casino2_profit = 0.0
+        casino1_name = "Casino A"
+        casino2_name = "Casino B"
+        
         if bet.drop_event and bet.drop_event.payload:
             try:
                 drop_data = bet.drop_event.payload
                 side_a = drop_data.get('side_a', {})
                 side_b = drop_data.get('side_b', {})
+                
                 if side_a and side_b:
                     from utils.middle_calculator import classify_middle_type
                     cls = classify_middle_type(side_a, side_b, bet.total_stake)
-                    min_profit = min(cls['profit_scenario_1'], cls['profit_scenario_3'])
+                    
+                    # Get casino names
+                    casino1_name = side_a.get('casino', 'Casino A')
+                    casino2_name = side_b.get('casino', 'Casino B')
+                    
+                    # Profits when only one casino wins
+                    casino1_profit = cls['profit_scenario_1']  # Side A wins, Side B loses
+                    casino2_profit = cls['profit_scenario_3']  # Side B wins, Side A loses
             except Exception as e:
-                logger.warning(f"Could not calculate min_profit: {e}")
+                logger.warning(f"Could not calculate middle profits: {e}")
         
         if lang == 'fr':
             text = (
                 f"🎲 <b>MIDDLE - RÉSULTAT</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
-                f"💵 Misé: ${bet.total_stake:.2f}\n"
-                f"💰 Si 1 bet hit: ${min_profit:+.2f}\n"
-                f"🎰 Si jackpot: ${jackpot_profit:+.2f}\n\n"
-                f"📊 <b>Résultat:</b>"
+                f"💵 Misé total: ${bet.total_stake:.2f}\n"
+                f"💰 Si arbitrage: ${min(casino1_profit, casino2_profit):+.2f}\n"
+                f"🎰 Si JACKPOT: ${jackpot_profit:+.2f}\n\n"
+                f"❓ <b>Quel est le résultat?</b>"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text="🎰 JACKPOT! (les 2 ont gagné)", callback_data=f"middle_outcome_{bet.id}_jackpot")],
-                [types.InlineKeyboardButton(text="✅ ARBITRAGE (1 seul)", callback_data=f"middle_outcome_{bet.id}_arb")],
-                [types.InlineKeyboardButton(text="❌ PERDU", callback_data=f"middle_outcome_{bet.id}_lost")]
+                [types.InlineKeyboardButton(text=f"🎰 JACKPOT! (les 2) - ${jackpot_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_jackpot")],
+                [types.InlineKeyboardButton(text=f"✅ {casino1_name} seul - ${casino1_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_casino1")],
+                [types.InlineKeyboardButton(text=f"✅ {casino2_name} seul - ${casino2_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_casino2")],
+                [types.InlineKeyboardButton(text="❌ Aucun n'a gagné (perdu)", callback_data=f"middle_outcome_{bet.id}_lost")]
             ])
         else:
             text = (
                 f"🎲 <b>MIDDLE - RESULT</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
-                f"💵 Staked: ${bet.total_stake:.2f}\n"
-                f"💰 If 1 hits: ${min_profit:+.2f}\n"
-                f"🎰 If jackpot: ${jackpot_profit:+.2f}\n\n"
-                f"📊 <b>Result:</b>"
+                f"💵 Total staked: ${bet.total_stake:.2f}\n"
+                f"💰 If arbitrage: ${min(casino1_profit, casino2_profit):+.2f}\n"
+                f"🎰 If JACKPOT: ${jackpot_profit:+.2f}\n\n"
+                f"❓ <b>What's the result?</b>"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text="🎰 JACKPOT! (both won)", callback_data=f"middle_outcome_{bet.id}_jackpot")],
-                [types.InlineKeyboardButton(text="✅ ARBITRAGE (only 1)", callback_data=f"middle_outcome_{bet.id}_arb")],
-                [types.InlineKeyboardButton(text="❌ LOST", callback_data=f"middle_outcome_{bet.id}_lost")]
+                [types.InlineKeyboardButton(text=f"🎰 JACKPOT! (both) - ${jackpot_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_jackpot")],
+                [types.InlineKeyboardButton(text=f"✅ {casino1_name} only - ${casino1_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_casino1")],
+                [types.InlineKeyboardButton(text=f"✅ {casino2_name} only - ${casino2_profit:+.2f}", callback_data=f"middle_outcome_{bet.id}_casino2")],
+                [types.InlineKeyboardButton(text="❌ None won (lost)", callback_data=f"middle_outcome_{bet.id}_lost")]
             ])
     
     elif bet_type == 'arbitrage':
