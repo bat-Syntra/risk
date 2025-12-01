@@ -27,7 +27,9 @@ async def cmd_start_with_auth(message: types.Message):
     if len(args) <= 1 or not args[1].startswith("auth_"):
         return  # Let handlers.py handle normal /start
     
-    logger.info(f"🔍 Web auth /start received from user {message.from_user.id}")
+    # Extract the auth code (remove "auth_" prefix)
+    auth_code = args[1].replace("auth_", "")
+    logger.info(f"🔍 Web auth /start received from user {message.from_user.id} with code {auth_code}")
     
     # Generate a unique session token
     import base64
@@ -82,6 +84,13 @@ async def cmd_start_with_auth(message: types.Message):
         db.commit()
     finally:
         db.close()
+    
+    # Notify web API for polling to work (browser auto-redirect)
+    await authenticate_user(
+        message.from_user.id,
+        message.from_user.username,
+        auth_code
+    )
     
     # Send direct link to dashboard
     dashboard_url = f"https://smartrisk0.xyz/auth/callback?token={token}"
