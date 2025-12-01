@@ -128,28 +128,9 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
             drop_data = bet.drop_event.payload
             outcomes = drop_data.get('outcomes', [])
             
-            # Get odds first to calculate proper stakes for arbitrage
-            odds1_raw = outcomes[0].get('odds') if len(outcomes) >= 1 else None
-            odds2_raw = outcomes[1].get('odds') if len(outcomes) >= 2 else None
-            
-            # Calculate stakes for arbitrage - payout1 must equal payout2!
-            if bet.bet_type == 'arbitrage' and odds1_raw and odds2_raw:
-                m1 = _odds_multiplier(str(odds1_raw))
-                m2 = _odds_multiplier(str(odds2_raw))
-                if m1 > 0 and m2 > 0:
-                    # For arbitrage: payout1 = payout2 = P
-                    # stake1 * m1 = P, stake2 * m2 = P
-                    # stake1 = P/m1, stake2 = P/m2
-                    # stake1 + stake2 = total_stake
-                    # P/m1 + P/m2 = total_stake
-                    # P = total_stake / (1/m1 + 1/m2)
-                    P = bet.total_stake / (1/m1 + 1/m2)
-                    stake1 = P / m1
-                    stake2 = P / m2
-                else:
-                    stake1 = stake2 = bet.total_stake / 2
-            else:
-                stake1 = stake2 = bet.total_stake / 2
+            # DON'T calculate stakes - they are randomized in the bet!
+            # Just use defaults for fallback
+            stake1 = stake2 = bet.total_stake / 2
             
             if len(outcomes) >= 1:
                 o1 = outcomes[0]
@@ -165,8 +146,6 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                     m1 = _odds_multiplier(casino1_odds)
                     payout1 = stake1_final * m1 if m1 > 0 else 0
                 
-                # CORRECT: profit = payout - stake
-                casino1_profit = payout1 - stake1_final
                 potential_payout = payout1  # For good_ev
             
             if len(outcomes) >= 2:
@@ -183,18 +162,29 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                     m2 = _odds_multiplier(casino2_odds)
                     payout2 = stake2_final * m2 if m2 > 0 else 0
                 
-                # CORRECT: profit = payout - stake
-                casino2_profit = payout2 - stake2_final
-                
-                # Calculate correct jackpot based on bet type
+                # Calculate profits based on bet type
                 if bet.bet_type == 'arbitrage':
-                    # Arbitrage: guaranteed profit = min(payout) - total_stake
-                    jackpot_profit = min(payout1, payout2) - bet.total_stake
+                    # Arbitrage with randomized stakes:
+                    # If casino1 wins: profit = payout1 - total_stake
+                    # If casino2 wins: profit = payout2 - total_stake
+                    casino1_profit = payout1 - bet.total_stake
+                    casino2_profit = payout2 - bet.total_stake
+                    # Jackpot = minimum profit (guaranteed)
+                    jackpot_profit = min(casino1_profit, casino2_profit)
+                    
                 elif bet.bet_type == 'middle':
-                    # Middle: best case = both win
-                    jackpot_profit = casino1_profit + casino2_profit
+                    # Middle with randomized stakes:
+                    # If only casino1 wins: profit = payout1 - total_stake
+                    # If only casino2 wins: profit = payout2 - total_stake
+                    # If both win (JACKPOT): profit = (payout1 + payout2) - total_stake
+                    casino1_profit = payout1 - bet.total_stake
+                    casino2_profit = payout2 - bet.total_stake
+                    jackpot_profit = (payout1 + payout2) - bet.total_stake
+                    
                 else:
-                    # Good EV: profit if win
+                    # Good EV: simple profit calculation
+                    casino1_profit = payout1 - stake1_final
+                    casino2_profit = 0
                     jackpot_profit = casino1_profit
             
             # For middles, try to get proper profits from side_a/side_b
