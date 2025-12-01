@@ -52,7 +52,7 @@ class AutoBackupManager:
     
     async def find_all_db_files(self) -> list[str]:
         """
-        Find all .db files in the project directory
+        Find all .db files in the project directory (including subdirectories)
         
         Returns:
             List of absolute paths to .db files
@@ -60,11 +60,17 @@ class AutoBackupManager:
         db_files = []
         project_root = Path(__file__).parent.parent
         
-        # Search for .db files
-        for db_file in project_root.glob("*.db"):
-            if db_file.is_file():
+        # Directories to skip
+        skip_dirs = {'.venv', '__pycache__', 'node_modules', '.git', 'venv', 'env'}
+        
+        # Search for .db files recursively
+        for db_file in project_root.rglob("*.db"):
+            # Skip files in excluded directories
+            if any(skip_dir in db_file.parts for skip_dir in skip_dirs):
+                continue
+            if db_file.is_file() and db_file.stat().st_size > 0:  # Skip empty files
                 db_files.append(str(db_file.absolute()))
-                logger.info(f"Found database: {db_file.name}")
+                logger.info(f"Found database: {db_file.name} ({db_file.stat().st_size / 1024:.1f} KB)")
         
         return db_files
     
