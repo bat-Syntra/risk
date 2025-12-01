@@ -453,16 +453,23 @@ async def callback_admin_backup_now(callback: types.CallbackQuery):
         # Send backup to admin
         await manual_backup_now(callback.bot, int(ADMIN_CHAT_ID))
         
-        # Refresh admin panel to show updated status
-        text, markup = await _build_admin_dashboard(callback.from_user.id)
-        await callback.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        # Try to refresh admin panel, ignore "message not modified" error
+        try:
+            text, markup = await _build_admin_dashboard(callback.from_user.id)
+            await callback.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        except Exception as edit_error:
+            # Ignore "message is not modified" error - it's harmless
+            if "message is not modified" not in str(edit_error).lower():
+                raise edit_error
         
     except Exception as e:
-        await callback.bot.send_message(
-            callback.from_user.id,
-            f"❌ <b>Backup failed</b>\n\nError: {str(e)}",
-            parse_mode=ParseMode.HTML
-        )
+        # Only show error if it's not the harmless "message not modified" error
+        if "message is not modified" not in str(e).lower():
+            await callback.bot.send_message(
+                callback.from_user.id,
+                f"❌ <b>Backup failed</b>\n\nError: {str(e)}",
+                parse_mode=ParseMode.HTML
+            )
 
 
 @router.callback_query(F.data == "admin_refresh")
