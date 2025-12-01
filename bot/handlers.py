@@ -359,18 +359,18 @@ async def start_command(message: types.Message, state: FSMContext):
             
             # Build confirmation message
             if lang == 'fr':
-                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(pending_bets)} confirmation(s) nécessaire(s):</b>\n"
+                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) nécessaire(s):</b>\n"
             else:
-                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(pending_bets)} confirmation(s) needed:</b>\n"
+                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) needed:</b>\n"
             
             # Show first 5 bets
-            for bet in pending_bets[:5]:
+            for bet in ready_bets[:5]:
                 bet_emoji = "🎲" if bet.bet_type == 'middle' else "✅" if bet.bet_type == 'arbitrage' else "📈"
                 match = bet.match_name or "Match"
                 menu_text += f"• {bet_emoji} {match} (${bet.total_stake:.0f})\n"
             
-            if len(pending_bets) > 5:
-                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(pending_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
+            if len(ready_bets) > 5:
+                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(ready_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
             
             menu_text += f"\n💡 {'Clique sur le bouton pour recevoir tous les questionnaires!' if lang == 'fr' else 'Click the button to receive all questionnaires!'}"
             
@@ -2404,18 +2404,18 @@ async def callback_main_menu(callback: types.CallbackQuery):
             
             # Build confirmation message
             if lang == 'fr':
-                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(pending_bets)} confirmation(s) nécessaire(s):</b>\n"
+                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) nécessaire(s):</b>\n"
             else:
-                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(pending_bets)} confirmation(s) needed:</b>\n"
+                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) needed:</b>\n"
             
             # Show first 5 bets
-            for bet in pending_bets[:5]:
+            for bet in ready_bets[:5]:
                 bet_emoji = "🎲" if bet.bet_type == 'middle' else "✅" if bet.bet_type == 'arbitrage' else "📈"
                 match = bet.match_name or "Match"
                 menu_text += f"• {bet_emoji} {match} (${bet.total_stake:.0f})\n"
             
-            if len(pending_bets) > 5:
-                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(pending_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
+            if len(ready_bets) > 5:
+                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(ready_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
             
             menu_text += f"\n💡 {'Clique sur le bouton pour recevoir tous les questionnaires!' if lang == 'fr' else 'Click the button to receive all questionnaires!'}"
             

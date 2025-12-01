@@ -38,19 +38,31 @@ def reset_user_notification(user_id: int):
 def check_pending_confirmations_count(user_id: int) -> int:
     """
     Check how many confirmations are pending for a user
-    Returns: number of pending confirmations (ALL pending bets, no date filtering)
+    Returns: number of pending confirmations (only ready for confirmation)
     """
     db = SessionLocal()
     try:
-        # Count ALL pending bets, regardless of date
-        pending_count = db.query(UserBet).filter(
+        today = date.today()
+        pending_bets = db.query(UserBet).filter(
             and_(
                 UserBet.user_id == user_id,
                 UserBet.status == 'pending'
             )
-        ).count()
+        ).all()
         
-        return pending_count
+        # Filter to only ready bets:
+        # 1. Match date is known and PASSED (day after match or later)
+        # 2. No match date, but bet was placed YESTERDAY or before (not today!)
+        ready_count = 0
+        for bet in pending_bets:
+            # Case 1: Match date is known and already passed
+            if bet.match_date and bet.match_date < today:  # Strict < to wait until day AFTER match
+                ready_count += 1
+            # Case 2: No match date, but bet was placed YESTERDAY or before (not today!)
+            elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                ready_count += 1
+        
+        return ready_count
     except Exception as e:
         logger.error(f"Error checking pending confirmations: {e}")
         return 0
