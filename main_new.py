@@ -393,6 +393,8 @@ dp.include_router(middle_outcome_tracker.router)
 # feedback_vouch_handler.router moved to top (before handlers.router) for FSM priority
 dp.include_router(admin_feedback_menu.router)  # Admin menu for feedbacks/vouches
 dp.include_router(intelligent_questionnaire.router)
+from bot import intelligent_questionnaire_step2
+dp.include_router(intelligent_questionnaire_step2.router)  # Step 2 handlers for intelligent questionnaire
 dp.include_router(daily_confirmation.router)
 dp.include_router(simulation_handler.router)
 

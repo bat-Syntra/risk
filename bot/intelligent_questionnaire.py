@@ -88,7 +88,9 @@ def estimate_match_end(commence_time_iso: str, sport: str) -> Optional[datetime]
 
 async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
     """
-    Envoie un questionnaire pour confirmer le résultat d'un bet.
+    Envoie un questionnaire INTELLIGENT pour confirmer le résultat d'un bet.
+    ÉTAPE 1: Demande si le match a commencé
+    ÉTAPE 2: Si oui → questions de résultat, si non → questions de date
     
     Args:
         bot_instance: Instance du bot Telegram
@@ -102,6 +104,61 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
         
         # Format dates
         from datetime import datetime
+        bet_date_str = bet.bet_date.strftime("%Y-%m-%d") if bet.bet_date else "N/A"
+        match_date_str = bet.match_date.strftime("%Y-%m-%d") if bet.match_date else "N/A"
+        
+        # STEP 1: Ask if match has started
+        if lang == 'fr':
+            text = (
+                f"🎯 <b>CONFIRMATION NÉCESSAIRE</b>\n\n"
+                f"⚽ <b>{match_name}</b>\n"
+                f"{'🏆 ' + sport_name if sport_name else ''}\n"
+                f"📅 Bet placé: {bet_date_str}\n"
+                f"💵 Misé: ${bet.total_stake:.2f}\n\n"
+                f"❓ <b>Le match a-t-il commencé?</b>"
+            )
+            yes_btn = types.InlineKeyboardButton(
+                text="✅ OUI - Le match a eu lieu",
+                callback_data=f"match_started_{bet.id}_yes"
+            )
+            no_btn = types.InlineKeyboardButton(
+                text="⏳ NON - Pas encore joué",
+                callback_data=f"match_started_{bet.id}_no"
+            )
+        else:
+            text = (
+                f"🎯 <b>CONFIRMATION NEEDED</b>\n\n"
+                f"⚽ <b>{match_name}</b>\n"
+                f"{'🏆 ' + sport_name if sport_name else ''}\n"
+                f"📅 Bet placed: {bet_date_str}\n"
+                f"💵 Staked: ${bet.total_stake:.2f}\n\n"
+                f"❓ <b>Has the match started?</b>"
+            )
+            yes_btn = types.InlineKeyboardButton(
+                text="✅ YES - Match played",
+                callback_data=f"match_started_{bet.id}_yes"
+            )
+            no_btn = types.InlineKeyboardButton(
+                text="⏳ NO - Not played yet",
+                callback_data=f"match_started_{bet.id}_no"
+            )
+        
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [yes_btn],
+            [no_btn]
+        ])
+        
+        await bot_instance.send_message(
+            chat_id=bet.user_id,
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
+        )
+        
+        logger.info(f"✅ Sent STEP 1 questionnaire for bet {bet.id} to user {bet.user_id}")
+        return
+        
+        # OLD CODE BELOW - Will be triggered by callbacks
         bet_date_str = bet.bet_date.strftime("%Y-%m-%d") if bet.bet_date else "N/A"
         match_date_str = bet.match_date.strftime("%Y-%m-%d") if bet.match_date else "N/A"
         
