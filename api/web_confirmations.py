@@ -128,21 +128,40 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
             drop_data = bet.drop_event.payload
             outcomes = drop_data.get('outcomes', [])
             
+            # Get odds first to calculate proper stakes for arbitrage
+            odds1_raw = outcomes[0].get('odds') if len(outcomes) >= 1 else None
+            odds2_raw = outcomes[1].get('odds') if len(outcomes) >= 2 else None
+            
+            # Calculate stakes for arbitrage (not 50/50!)
+            if bet.bet_type == 'arbitrage' and odds1_raw and odds2_raw:
+                m1 = _odds_multiplier(str(odds1_raw))
+                m2 = _odds_multiplier(str(odds2_raw))
+                if m1 > 0 and m2 > 0:
+                    # Arbitrage formula: stake1 / stake2 = m2 / m1
+                    # stake1 + stake2 = total_stake
+                    stake1 = bet.total_stake / (1 + m2/m1)
+                    stake2 = bet.total_stake - stake1
+                else:
+                    stake1 = stake2 = bet.total_stake / 2
+            else:
+                stake1 = stake2 = bet.total_stake / 2
+            
             if len(outcomes) >= 1:
                 o1 = outcomes[0]
                 casino1_name = o1.get('casino', 'Casino A')
                 casino1_odds = str(o1.get('odds', ''))
                 casino1_outcome = o1.get('outcome', '')
                 
-                stake1 = _to_float(o1.get('stake', o1.get('bet_amount', o1.get('wager', bet.total_stake / 2))))
+                # Use calculated stake for arbitrage, or from payload
+                stake1_final = _to_float(o1.get('stake', o1.get('bet_amount', o1.get('wager', stake1))))
                 payout1 = _to_float(o1.get('payout', o1.get('return', 0)))
                 
                 if payout1 == 0 and casino1_odds:
                     m1 = _odds_multiplier(casino1_odds)
-                    payout1 = stake1 * m1 if m1 > 0 else 0
+                    payout1 = stake1_final * m1 if m1 > 0 else 0
                 
-                # CORRECT: profit = payout - stake (not total_stake!)
-                casino1_profit = payout1 - stake1
+                # CORRECT: profit = payout - stake
+                casino1_profit = payout1 - stake1_final
                 potential_payout = payout1  # For good_ev
             
             if len(outcomes) >= 2:
@@ -151,22 +170,23 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                 casino2_odds = str(o2.get('odds', ''))
                 casino2_outcome = o2.get('outcome', '')
                 
-                stake2 = _to_float(o2.get('stake', o2.get('bet_amount', o2.get('wager', bet.total_stake / 2))))
+                # Use calculated stake for arbitrage, or from payload
+                stake2_final = _to_float(o2.get('stake', o2.get('bet_amount', o2.get('wager', stake2))))
                 payout2 = _to_float(o2.get('payout', o2.get('return', 0)))
                 
                 if payout2 == 0 and casino2_odds:
                     m2 = _odds_multiplier(casino2_odds)
-                    payout2 = stake2 * m2 if m2 > 0 else 0
+                    payout2 = stake2_final * m2 if m2 > 0 else 0
                 
-                # CORRECT: profit = payout - stake (not total_stake!)
-                casino2_profit = payout2 - stake2
+                # CORRECT: profit = payout - stake
+                casino2_profit = payout2 - stake2_final
                 
                 # Calculate correct jackpot based on bet type
                 if bet.bet_type == 'arbitrage':
                     # Arbitrage: guaranteed profit = min(payout) - total_stake
                     jackpot_profit = min(payout1, payout2) - bet.total_stake
                 elif bet.bet_type == 'middle':
-                    # Middle: best case = both win = (payout1 - stake1) + (payout2 - stake2)
+                    # Middle: best case = both win
                     jackpot_profit = casino1_profit + casino2_profit
                 else:
                     # Good EV: profit if win
