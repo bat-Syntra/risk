@@ -2269,6 +2269,12 @@ async def callback_buy_premium(callback: types.CallbackQuery):
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: types.CallbackQuery):
     """Return to unified main menu"""
+    # Check if user has pending confirmations
+    from bot.pending_confirmations import check_pending_confirmations_count
+    pending_count = check_pending_confirmations_count(callback.from_user.id)
+    has_pending = pending_count > 0
+    logger.info(f"[MAIN_MENU CALLBACK] User {callback.from_user.id} - pending_count={pending_count}, has_pending={has_pending}")
+    
     # Don't call answer() here - BotMessageManager.send_or_edit() does it
     db = SessionLocal()
     try:
@@ -2392,52 +2398,96 @@ async def callback_main_menu(callback: types.CallbackQuery):
             # ALPHA: show their stats normally
             stats_line2 = f"📣 {calls_label}: <b>{calls_count}</b>\n📈 {potential_label}: <b>{potential_pct}%</b>\n\n"
         
-        menu_text = (
-            f"🎰 <b>{title} {user_tg.first_name}!{badge2}</b>\n\n"
-            f"💰 {desc}\n\n"
-            f"{tier_line2}"
-            f"{quota_line2}{days_left_line}"
-            f"💵 <b>Profit total: ${total_profit_calc:.2f}</b>\n"
-            f"📊 <b>Bets placés: {total_bets_count}</b>\n"
-            f"{stats_line2}"
-            f"{help_line2}"
-        )
-        # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
-        bet_focus = getattr(user, 'bet_focus_mode', False)
-        if user.tier == TierLevel.PREMIUM:
+        # If user has pending confirmations, show special confirmation menu
+        if has_pending:
+            # Get list of pending bets
+            today = date.today()
+            pending_bets = db.query(UserBet).filter(
+                and_(
+                    UserBet.user_id == user_tg.id,
+                    UserBet.status == 'pending'
+                )
+            ).all()
+            
+            # Filter to only ready bets
+            ready_bets = []
+            for bet in pending_bets:
+                if bet.match_date and bet.match_date <= today:
+                    ready_bets.append(bet)
+                elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                    ready_bets.append(bet)
+            
+            # Build confirmation message
+            if lang == 'fr':
+                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) nécessaire(s):</b>\n"
+            else:
+                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) needed:</b>\n"
+            
+            # Show first 5 bets
+            for bet in ready_bets[:5]:
+                bet_emoji = "🎲" if bet.bet_type == 'middle' else "✅" if bet.bet_type == 'arbitrage' else "📈"
+                match = bet.match_name or "Match"
+                menu_text += f"• {bet_emoji} {match} (${bet.total_stake:.0f})\n"
+            
+            if len(ready_bets) > 5:
+                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(ready_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
+            
+            menu_text += f"\n💡 {'Clique sur le bouton pour recevoir tous les questionnaires!' if lang == 'fr' else 'Click the button to receive all questionnaires!'}"
+            
+            # Only ONE button: send questionnaires
+            btn_text = f"📨 {'Envoyer tous les questionnaires' if lang == 'fr' else 'Send all questionnaires'}"
             keyboard = [
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                [InlineKeyboardButton(text=btn_text, callback_data="resend_all_questionnaires")]
             ]
-            # Add Casino/Guide/Referral if bet_focus_mode is OFF
-            if not bet_focus:
-                keyboard.extend([
+        else:
+            # Normal menu
+            menu_text = (
+                f"🎰 <b>{title} {user_tg.first_name}!{badge2}</b>\n\n"
+                f"💰 {desc}\n\n"
+                f"{tier_line2}"
+                f"{quota_line2}{days_left_line}"
+                f"💵 <b>Profit total: ${total_profit_calc:.2f}</b>\n"
+                f"📊 <b>Bets placés: {total_bets_count}</b>\n"
+                f"{stats_line2}"
+                f"{help_line2}"
+            )
+            # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
+            bet_focus = getattr(user, 'bet_focus_mode', False)
+            if user.tier == TierLevel.PREMIUM:
+                keyboard = [
+                    [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
+                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+                    [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                ]
+                # Add Casino/Guide/Referral if bet_focus_mode is OFF
+                if not bet_focus:
+                    keyboard.extend([
                     [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
                     [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
                     [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                ])
-        else:
-            keyboard = [
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
-                [InlineKeyboardButton(text=("💎 Tiers Alpha" if lang == "fr" else "💎 Alpha Tiers"), callback_data="show_tiers")],
-                [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
-                [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
-                [InlineKeyboardButton(text=("📰 Nouvelles" if lang == "fr" else "📰 News"), callback_data="show_news")],
-            ]
-        # Admin button if user is admin (env or DB or role)
-        # Import admin system helper
-        from bot.admin_approval_system import is_any_admin
+                    ])
+            else:
+                keyboard = [
+                    [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
+                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+                    [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                    [InlineKeyboardButton(text=("💎 Tiers Alpha" if lang == "fr" else "💎 Alpha Tiers"), callback_data="show_tiers")],
+                    [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
+                    [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
+                    [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
+                    [InlineKeyboardButton(text=("📰 Nouvelles" if lang == "fr" else "📰 News"), callback_data="show_news")],
+                ]
+            # Admin button if user is admin (env or DB or role)
+            # Import admin system helper
+            from bot.admin_approval_system import is_any_admin
+            
+            # Check if user is admin (checks role column in DB)
+            if is_any_admin(user_tg.id):
+                admin_label = "🛠️ Admin" if lang == "fr" else "🛠️ Admin"
+                keyboard.append([InlineKeyboardButton(text=admin_label, callback_data="open_admin")])
         
-        # Check if user is admin (checks role column in DB)
-        if is_any_admin(user_tg.id):
-            admin_label = "🛠️ Admin" if lang == "fr" else "🛠️ Admin"
-            keyboard.append([InlineKeyboardButton(text=admin_label, callback_data="open_admin")])
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
         await BotMessageManager.send_or_edit(
             event=callback,
