@@ -10,10 +10,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.enums import ParseMode
 import os
 from datetime import datetime, date, timedelta
-from sqlalchemy import func, case, text
+from sqlalchemy import func, case, text, and_
 
 from database import SessionLocal
 from models.user import User, TierLevel
+from models.bet import UserBet
 from models.bet import DailyStats, UserBet
 from core.tiers import TierManager, TierLevel as CoreTierLevel
 from core.referrals import ReferralManager
@@ -55,11 +56,10 @@ async def start_command(message: types.Message, state: FSMContext):
     except Exception:
         pass
     
-    # Check if user has pending confirmations that block menu access
-    from bot.pending_confirmations import block_if_pending_confirmations
-    is_blocked = await block_if_pending_confirmations(message)
-    if is_blocked:
-        return  # User is blocked, don't show menu
+    # Check if user has pending confirmations
+    from bot.pending_confirmations import check_pending_confirmations_count
+    pending_count = check_pending_confirmations_count(message.from_user.id)
+    has_pending = pending_count > 0
     
     user_tg = message.from_user
     db = SessionLocal()
@@ -343,56 +343,100 @@ async def start_command(message: types.Message, state: FSMContext):
             else:
                 stats_line = f"📣 {calls_label}: <b>{calls_count}</b>\n📈 {potential_label}: <b>{potential_pct}%</b>\n\n"
         
-        menu_text = (
-            f"🎰 <b>{title} {user_tg.first_name}!{badge}</b>\n\n"
-            f"💰 {desc}\n\n"
-            f"{tier_line}"
-            f"{quota_line}{days_left_line}"
-            f"💵 <b>{profit_label}: ${total_profit_calc:.2f}</b>\n"
-            f"📊 <b>{bets_label}: {total_bets_count}</b>\n"
-            f"{stats_line}"
-            f"{help_line}"
-        )
-        # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
-        bet_focus = getattr(user, 'bet_focus_mode', False)
-        if user.tier == TierLevel.PREMIUM:
+        # If user has pending confirmations, show special confirmation menu
+        if has_pending:
+            # Get list of pending bets
+            today = date.today()
+            pending_bets = db.query(UserBet).filter(
+                and_(
+                    UserBet.user_id == user_tg.id,
+                    UserBet.status == 'pending'
+                )
+            ).all()
+            
+            # Filter to only ready bets
+            ready_bets = []
+            for bet in pending_bets:
+                if bet.match_date and bet.match_date <= today:
+                    ready_bets.append(bet)
+                elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                    ready_bets.append(bet)
+            
+            # Build confirmation message
+            if lang == 'fr':
+                menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) nécessaire(s):</b>\n"
+            else:
+                menu_text = f"📋 <b>PENDING CONFIRMATIONS</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) needed:</b>\n"
+            
+            # Show first 5 bets
+            for bet in ready_bets[:5]:
+                bet_emoji = "🎲" if bet.bet_type == 'middle' else "✅" if bet.bet_type == 'arbitrage' else "📈"
+                match = bet.match_name or "Match"
+                menu_text += f"• {bet_emoji} {match} (${bet.total_stake:.0f})\n"
+            
+            if len(ready_bets) > 5:
+                menu_text += f"  ... {'et' if lang == 'fr' else 'and'} {len(ready_bets) - 5} {'autre(s)' if lang == 'fr' else 'more'}\n"
+            
+            menu_text += f"\n💡 {'Clique sur le bouton pour recevoir tous les questionnaires!' if lang == 'fr' else 'Click the button to receive all questionnaires!'}"
+            
+            # Only ONE button: send questionnaires
+            btn_text = f"📨 {'Envoyer tous les questionnaires' if lang == 'fr' else 'Send all questionnaires'}"
             keyboard = [
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                [InlineKeyboardButton(text=btn_text, callback_data="resend_all_questionnaires")]
             ]
-            # Add Casino/Guide/Referral if bet_focus_mode is OFF
-            if not bet_focus:
-                keyboard.extend([
+        else:
+            # Normal menu
+            menu_text = (
+                f"🎰 <b>{title} {user_tg.first_name}!{badge}</b>\n\n"
+                f"💰 {desc}\n\n"
+                f"{tier_line}"
+                f"{quota_line}{days_left_line}"
+                f"💵 <b>{profit_label}: ${total_profit_calc:.2f}</b>\n"
+                f"📊 <b>{bets_label}: {total_bets_count}</b>\n"
+                f"{stats_line}"
+                f"{help_line}"
+            )
+            # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
+            bet_focus = getattr(user, 'bet_focus_mode', False)
+            if user.tier == TierLevel.PREMIUM:
+                keyboard = [
+                    [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
+                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+                    [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                ]
+                # Add Casino/Guide/Referral if bet_focus_mode is OFF
+                if not bet_focus:
+                    keyboard.extend([
                     [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
                     [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
                     [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                ])
-        else:
-            keyboard = [
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
-                [InlineKeyboardButton(text=("💎 Tiers Alpha" if lang == "fr" else "💎 Alpha Tiers"), callback_data="show_tiers")],
-                [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
-                [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
-            ]
-        # Admin panel button (env or DB admin)
-        try:
-            env_admins = [int(x.strip()) for x in (os.getenv("ADMIN_IDS", "").split(",") if os.getenv("ADMIN_IDS") else []) if x.strip()]
-        except Exception:
-            env_admins = []
-        is_env_admin = False
-        try:
-            is_env_admin = (user_tg.id in env_admins) or (ADMIN_CHAT_ID and user_tg.id == int(ADMIN_CHAT_ID))
-        except Exception:
+                    ])
+            else:
+                keyboard = [
+                    [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
+                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+                    [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
+                    [InlineKeyboardButton(text=("💎 Tiers Alpha" if lang == "fr" else "💎 Alpha Tiers"), callback_data="show_tiers")],
+                    [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
+                    [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
+                    [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
+                ]
+            # Admin panel button (env or DB admin)
+            try:
+                env_admins = [int(x.strip()) for x in (os.getenv("ADMIN_IDS", "").split(",") if os.getenv("ADMIN_IDS") else []) if x.strip()]
+            except Exception:
+                env_admins = []
             is_env_admin = False
-        if user.is_admin or is_env_admin:
-            admin_label = "🛠️ Admin" if lang == "fr" else "🛠️ Admin"
-            keyboard.append([InlineKeyboardButton(text=admin_label, callback_data="open_admin")])
+            try:
+                is_env_admin = (user_tg.id in env_admins) or (ADMIN_CHAT_ID and user_tg.id == int(ADMIN_CHAT_ID))
+            except Exception:
+                is_env_admin = False
+            if user.is_admin or is_env_admin:
+                admin_label = "🛠️ Admin" if lang == "fr" else "🛠️ Admin"
+                keyboard.append([InlineKeyboardButton(text=admin_label, callback_data="open_admin")])
+        
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
         
         # Ensure per-chat commands reflect language (default EN)
