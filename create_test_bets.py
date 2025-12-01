@@ -3,7 +3,7 @@
 
 from database import SessionLocal
 from sqlalchemy import text
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
 
 db = SessionLocal()
@@ -64,7 +64,7 @@ bets_data = [
 
 for bet_data in bets_data:
     # Créer le drop_event avec le payload et event_id
-    event_id = f"test_{bet_data[1]}_{bet_data[2].replace(' ', '_')}"
+    event_id = f"test_{bet_data[1]}_{bet_data[2].replace(' ', '_')}_{int(datetime.now().timestamp())}"
     db.execute(text('''
         INSERT INTO drop_events (event_id, payload)
         VALUES (:event_id, :payload)
