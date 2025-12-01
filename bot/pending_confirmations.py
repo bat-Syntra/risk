@@ -70,60 +70,18 @@ def check_pending_confirmations_count(user_id: int) -> int:
 
 async def block_if_pending_confirmations(message: types.Message) -> bool:
     """
-    Affiche SEULEMENT un badge de confirmations en attente, ne bloque PAS le menu
-    Returns: Always False (never blocks)
+    Redirige vers /confirmations si des confirmations sont en attente
+    Returns: True if redirected, False if OK to continue
     """
-    global _notified_today, _last_reset_date
-    
-    # Reset daily tracking
-    current_date = date.today()
-    if _last_reset_date != current_date:
-        _notified_today = {}
-        _last_reset_date = current_date
-    
     user_id = message.from_user.id
     pending_count = check_pending_confirmations_count(user_id)
     
     if pending_count == 0:
-        return False  # No confirmations needed
+        return False  # No confirmations needed - show menu
     
-    # Check if already notified today - DON'T show message again
-    if user_id in _notified_today:
-        return False  # Don't block, don't show message
-    
-    # Mark as notified
-    _notified_today[user_id] = True
-    
-    # Get user language
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language if user else 'en'
-    finally:
-        db.close()
-    
-    # Send notification message (not blocking)
-    if lang == 'fr':
-        text = (
-            f"⏰ <b>RAPPEL: CONFIRMATIONS EN ATTENTE</b>\n\n"
-            f"Tu as <b>{pending_count} bet(s)</b> à confirmer.\n\n"
-            f"💡 Clique sur le bouton pour recevoir tous les questionnaires:"
-        )
-        btn_text = f"✅ Confirmer {pending_count} bet(s)"
-    else:
-        text = (
-            f"⏰ <b>REMINDER: PENDING CONFIRMATIONS</b>\n\n"
-            f"You have <b>{pending_count} bet(s)</b> to confirm.\n\n"
-            f"💡 Click the button to receive all questionnaires:"
-        )
-        btn_text = f"✅ Confirm {pending_count} bet(s)"
-    
-    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[[
-        types.InlineKeyboardButton(text=btn_text, callback_data="start_confirmations")
-    ]])
-    
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
-    return False  # Don't block menu - just show notification
+    # Auto-redirect to /confirmations command
+    await cmd_confirmations(message)
+    return True  # Blocked - redirected to confirmations
 
 
 @router.callback_query(F.data == "start_confirmations")
