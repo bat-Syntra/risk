@@ -829,6 +829,7 @@ async def get_calendar_data(
                     'date': day,
                     'pnl': 0,
                     'bets': 0,
+                    'stake': 0,  # REAL total stake
                     'wins': 0,
                     'losses': 0,
                     'strategies': {
@@ -839,10 +840,11 @@ async def get_calendar_data(
                     }
                 }
             
-            # Add P&L
+            # Add P&L and REAL stake
             profit = bet.actual_profit if bet.actual_profit is not None else (bet.expected_profit or 0)
             days_data[day]['pnl'] += profit
             days_data[day]['bets'] += 1
+            days_data[day]['stake'] += bet.total_stake or 0  # Add REAL stake
             
             # Track wins/losses
             if profit > 0:
