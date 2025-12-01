@@ -139,7 +139,7 @@ async def get_live_calls(type: str = "all", limit: int = 50):
                     if match:
                         player = match.group(1).strip()
             
-            # Get match time from DB column first, then payload
+            # Get match time from DB column first, then payload (try multiple fields)
             match_time = None
             if hasattr(call, 'match_time') and call.match_time:
                 match_time = call.match_time.isoformat()
@@ -147,6 +147,15 @@ async def get_live_calls(type: str = "all", limit: int = 50):
                 match_time = payload.get("formatted_time")
             elif payload.get("commence_time"):
                 match_time = payload.get("commence_time")
+            elif payload.get("game_time"):
+                match_time = payload.get("game_time")
+            elif payload.get("event_time"):
+                match_time = payload.get("event_time")
+            # Also check nested in outcomes
+            elif payload.get("outcomes") and len(payload.get("outcomes", [])) > 0:
+                first_outcome = payload["outcomes"][0]
+                if first_outcome.get("commence_time"):
+                    match_time = first_outcome.get("commence_time")
             
             result.append({
                 "id": call.id,
