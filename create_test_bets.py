@@ -16,16 +16,12 @@ arb_payload = {
         {
             'casino': 'DraftKings',
             'outcome': 'Lakers ML',
-            'odds': '+150',
-            'stake': 300.0,
-            'payout': 750.0
+            'odds': 150,  # Numeric not string!
         },
         {
             'casino': 'FanDuel', 
             'outcome': 'Celtics ML',
-            'odds': '-110',
-            'stake': 330.0,
-            'payout': 630.0
+            'odds': -110,  # Numeric not string!
         }
     ]
 }
@@ -36,26 +32,14 @@ middle_payload = {
         {
             'casino': 'BetMGM',
             'outcome': 'Chiefs -2.5',
-            'odds': '-110'
+            'odds': -110
         },
         {
             'casino': 'Caesars',
             'outcome': 'Bills +3.5', 
-            'odds': '+100'
+            'odds': 100
         }
-    ],
-    'side_a': {
-        'casino': 'BetMGM',
-        'odds': -110,
-        'line': -2.5,
-        'stake': 275.0
-    },
-    'side_b': {
-        'casino': 'Caesars',
-        'odds': 100,
-        'line': 3.5,
-        'stake': 250.0
-    }
+    ]
 }
 
 # Bet 3: Good EV avec données complètes
@@ -64,29 +48,35 @@ ev_payload = {
         {
             'casino': 'PointsBet',
             'outcome': 'Bucks ML',
-            'odds': '+180',
-            'stake': 500.0,
-            'payout': 1400.0
+            'odds': 180
         }
     ]
 }
 
-# Insérer les bets (simplifié sans drop_event)
+# Insérer les bets AVEC drop_events
 bets_data = [
-    (user_id, 'arbitrage', 'Lakers vs Celtics', 'NBA', 630.0, 20.0, 'pending', yesterday, None),
-    (user_id, 'middle', 'Chiefs vs Bills', 'NFL', 525.0, 150.0, 'pending', yesterday, None),
-    (user_id, 'good_ev', 'Bucks vs Nets', 'NBA', 500.0, 85.0, 'pending', yesterday, None)
+    (user_id, 'arbitrage', 'Lakers vs Celtics', 'NBA', 630.0, 20.0, 'pending', yesterday, None, arb_payload),
+    (user_id, 'middle', 'Chiefs vs Bills', 'NFL', 525.0, 150.0, 'pending', yesterday, None, middle_payload),
+    (user_id, 'good_ev', 'Bucks vs Nets', 'NBA', 500.0, 85.0, 'pending', yesterday, None, ev_payload)
 ]
 
 for bet_data in bets_data:
-    # Créer le bet simplement
+    # Créer le drop_event avec le payload
+    db.execute(text('''
+        INSERT INTO drop_events (payload)
+        VALUES (:payload)
+    '''), {'payload': json.dumps(bet_data[9])})
+    
+    drop_event_id = db.execute(text('SELECT last_insert_rowid()')).scalar()
+    
+    # Créer le bet avec drop_event_id
     db.execute(text('''
         INSERT INTO user_bets (
             user_id, bet_type, match_name, sport, total_stake, 
-            expected_profit, status, bet_date, match_date
+            expected_profit, status, bet_date, match_date, drop_event_id
         ) VALUES (
             :uid, :type, :match, :sport, :stake,
-            :profit, :status, :date, :mdate
+            :profit, :status, :date, :mdate, :drop_id
         )
     '''), {
         'uid': bet_data[0],
@@ -97,7 +87,8 @@ for bet_data in bets_data:
         'profit': bet_data[5],
         'status': bet_data[6],
         'date': bet_data[7],
-        'mdate': bet_data[8]
+        'mdate': bet_data[8],
+        'drop_id': drop_event_id
     })
 
 db.commit()
