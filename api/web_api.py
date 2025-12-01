@@ -151,7 +151,7 @@ async def get_live_calls(type: str = "all", limit: int = 50):
             result.append({
                 "id": call.id,
                 "eventId": call.event_id,
-                "receivedAt": call.received_at.isoformat() if call.received_at else None,
+                "receivedAt": call.received_at.isoformat() if call.received_at else (call.created_at.isoformat() if hasattr(call, 'created_at') and call.created_at else None),
                 "betType": call.bet_type,
                 "arbPercentage": call.arb_percentage,
                 "match": call.match,
