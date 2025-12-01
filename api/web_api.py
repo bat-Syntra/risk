@@ -214,12 +214,26 @@ async def get_user(telegram_id: int):
         today_count = len(today_bets)
         today_profit = sum(b.expected_profit or 0 for b in today_bets)
         
-        # Calculate win rate
-        total_profit = user.total_profit or 0
-        total_loss = user.total_loss or 0
+        # Calculate REAL all-time stats from UserBet table (all months!)
+        all_bets = db.query(UserBet).filter(UserBet.user_id == telegram_id).all()
+        
+        total_bets = len(all_bets)
+        arb_bets = [b for b in all_bets if b.bet_type == 'arbitrage']
+        mid_bets = [b for b in all_bets if b.bet_type == 'middle']
+        ev_bets = [b for b in all_bets if b.bet_type == 'good_ev']
+        
+        arb_profit = sum(b.expected_profit or 0 for b in arb_bets)
+        mid_profit = sum(b.expected_profit or 0 for b in mid_bets)
+        ev_profit = sum(b.expected_profit or 0 for b in ev_bets)
+        
+        total_profit = arb_profit + mid_profit + ev_profit
+        
+        # Calculate win rate from bets
+        winning_bets = sum(1 for b in all_bets if (b.expected_profit or 0) > 0)
+        losing_bets = sum(1 for b in all_bets if (b.expected_profit or 0) < 0)
         win_rate = 0
-        if total_profit + total_loss > 0:
-            win_rate = (total_profit / (total_profit + total_loss)) * 100
+        if total_bets > 0:
+            win_rate = (winning_bets / total_bets) * 100
         
         return {
             "user": {
@@ -239,16 +253,16 @@ async def get_user(telegram_id: int):
                 }
             },
             "stats": {
-                "totalBets": user.total_bets or 0,
+                "totalBets": total_bets,
                 "totalProfit": total_profit,
-                "totalLoss": total_loss,
-                "netProfit": total_profit - total_loss,
-                "arbitrageBets": user.arbitrage_bets or 0,
-                "arbitrageProfit": user.arbitrage_profit or 0,
-                "goodEvBets": user.good_ev_bets or 0,
-                "goodEvProfit": user.good_ev_profit or 0,
-                "middleBets": user.middle_bets or 0,
-                "middleProfit": user.middle_profit or 0,
+                "totalLoss": 0,  # We don't track losses separately
+                "netProfit": total_profit,
+                "arbitrageBets": len(arb_bets),
+                "arbitrageProfit": arb_profit,
+                "goodEvBets": len(ev_bets),
+                "goodEvProfit": ev_profit,
+                "middleBets": len(mid_bets),
+                "middleProfit": mid_profit,
                 "todayBets": today_count,
                 "todayProfit": today_profit,
                 "winRate": win_rate,
