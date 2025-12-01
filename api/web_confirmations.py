@@ -128,9 +128,23 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
             drop_data = bet.drop_event.payload
             outcomes = drop_data.get('outcomes', [])
             
-            # DON'T calculate stakes - they are randomized in the bet!
-            # Just use defaults for fallback
-            stake1 = stake2 = bet.total_stake / 2
+            # Calculate OPTIMAL stakes for proper profit calculation
+            # (Real stakes may be randomized, but we show optimal profits for confirmation)
+            odds1_raw = outcomes[0].get('odds') if len(outcomes) >= 1 else None
+            odds2_raw = outcomes[1].get('odds') if len(outcomes) >= 2 else None
+            
+            if odds1_raw and odds2_raw:
+                m1 = _odds_multiplier(str(odds1_raw))
+                m2 = _odds_multiplier(str(odds2_raw))
+                if m1 > 0 and m2 > 0:
+                    # Calculate optimal stakes (equal payout formula)
+                    P = bet.total_stake / (1/m1 + 1/m2)
+                    stake1 = P / m1
+                    stake2 = P / m2
+                else:
+                    stake1 = stake2 = bet.total_stake / 2
+            else:
+                stake1 = stake2 = bet.total_stake / 2
             
             if len(outcomes) >= 1:
                 o1 = outcomes[0]
@@ -164,21 +178,20 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                 
                 # Calculate profits based on bet type
                 if bet.bet_type == 'arbitrage':
-                    # Arbitrage with randomized stakes:
-                    # If casino1 wins: profit = payout1 - total_stake
-                    # If casino2 wins: profit = payout2 - total_stake
+                    # Arbitrage with optimal stakes:
+                    # Both payouts are equal, so profit is guaranteed
                     casino1_profit = payout1 - bet.total_stake
                     casino2_profit = payout2 - bet.total_stake
-                    # Jackpot = minimum profit (guaranteed)
+                    # Should be equal (or very close)
                     jackpot_profit = min(casino1_profit, casino2_profit)
                     
                 elif bet.bet_type == 'middle':
-                    # Middle with randomized stakes:
-                    # If only casino1 wins: profit = payout1 - total_stake
-                    # If only casino2 wins: profit = payout2 - total_stake
-                    # If both win (JACKPOT): profit = (payout1 + payout2) - total_stake
+                    # Middle: different scenarios
+                    # If only casino1 wins: you lose stake2
                     casino1_profit = payout1 - bet.total_stake
+                    # If only casino2 wins: you lose stake1
                     casino2_profit = payout2 - bet.total_stake
+                    # If both win (JACKPOT): you get both payouts!
                     jackpot_profit = (payout1 + payout2) - bet.total_stake
                     
                 else:
