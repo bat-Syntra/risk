@@ -61,11 +61,12 @@ bets_data = [
 ]
 
 for bet_data in bets_data:
-    # Créer le drop_event avec le payload
+    # Créer le drop_event avec le payload et event_id
+    event_id = f"test_{bet_data[1]}_{bet_data[2].replace(' ', '_')}"
     db.execute(text('''
-        INSERT INTO drop_events (payload)
-        VALUES (:payload)
-    '''), {'payload': json.dumps(bet_data[9])})
+        INSERT INTO drop_events (event_id, payload)
+        VALUES (:event_id, :payload)
+    '''), {'event_id': event_id, 'payload': json.dumps(bet_data[9])})
     
     drop_event_id = db.execute(text('SELECT last_insert_rowid()')).scalar()
     
