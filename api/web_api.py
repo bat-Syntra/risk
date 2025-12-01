@@ -801,18 +801,18 @@ async def get_calendar_data(
             and_(
                 UserBet.user_id == telegram_id,
                 UserBet.status.in_(['confirmed', 'won', 'lost']),
-                extract('year', UserBet.confirmed_at) == target_year,
-                extract('month', UserBet.confirmed_at) == target_month
+                extract('year', UserBet.bet_date) == target_year,
+                extract('month', UserBet.bet_date) == target_month
             )
         ).all()
         
         # Group bets by day
         days_data = {}
         for bet in bets:
-            if not bet.confirmed_at:
+            if not bet.bet_date:
                 continue
                 
-            day = bet.confirmed_at.day
+            day = bet.bet_date.day
             if day not in days_data:
                 days_data[day] = {
                     'date': day,
