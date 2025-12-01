@@ -92,6 +92,10 @@ app.add_middleware(
 from api.web_api import router as web_router, manager as ws_manager
 app.include_router(web_router)
 
+# Web Confirmations API (syncs with Telegram confirmations)
+from api.web_confirmations import router as web_confirmations_router
+app.include_router(web_confirmations_router)
+
 # WebSocket endpoint (must be on main app, not router for CORS)
 from fastapi import WebSocket, WebSocketDisconnect
 
