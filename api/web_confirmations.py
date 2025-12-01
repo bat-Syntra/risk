@@ -141,7 +141,8 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                     m1 = _odds_multiplier(casino1_odds)
                     payout1 = stake1 * m1 if m1 > 0 else 0
                 
-                casino1_profit = payout1 - bet.total_stake
+                # CORRECT: profit = payout - stake (not total_stake!)
+                casino1_profit = payout1 - stake1
                 potential_payout = payout1  # For good_ev
             
             if len(outcomes) >= 2:
@@ -157,7 +158,19 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
                     m2 = _odds_multiplier(casino2_odds)
                     payout2 = stake2 * m2 if m2 > 0 else 0
                 
-                casino2_profit = payout2 - bet.total_stake
+                # CORRECT: profit = payout - stake (not total_stake!)
+                casino2_profit = payout2 - stake2
+                
+                # Calculate correct jackpot based on bet type
+                if bet.bet_type == 'arbitrage':
+                    # Arbitrage: guaranteed profit = min(payout) - total_stake
+                    jackpot_profit = min(payout1, payout2) - bet.total_stake
+                elif bet.bet_type == 'middle':
+                    # Middle: best case = both win = (payout1 - stake1) + (payout2 - stake2)
+                    jackpot_profit = casino1_profit + casino2_profit
+                else:
+                    # Good EV: profit if win
+                    jackpot_profit = casino1_profit
             
             # For middles, try to get proper profits from side_a/side_b
             if bet.bet_type == 'middle':
