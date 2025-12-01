@@ -26,18 +26,20 @@ arb_payload = {
     ]
 }
 
-# Bet 2: Middle avec données complètes
+# Bet 2: Middle avec profit garanti (both sides positive)
 middle_payload = {
     'outcomes': [
         {
             'casino': 'BetMGM',
-            'outcome': 'Chiefs -2.5',
-            'odds': -110
+            'outcome': 'Over 45.5',
+            'odds': -105,  # Better odds
+            'stake': 262.5
         },
         {
             'casino': 'Caesars',
-            'outcome': 'Bills +3.5', 
-            'odds': 100
+            'outcome': 'Under 48.5', 
+            'odds': 110,  # Better odds
+            'stake': 262.5
         }
     ]
 }

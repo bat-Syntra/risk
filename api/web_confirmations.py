@@ -128,23 +128,31 @@ def _build_confirmation(bet: UserBet) -> BetConfirmation:
             drop_data = bet.drop_event.payload
             outcomes = drop_data.get('outcomes', [])
             
-            # Calculate OPTIMAL stakes for proper profit calculation
-            # (Real stakes may be randomized, but we show optimal profits for confirmation)
-            odds1_raw = outcomes[0].get('odds') if len(outcomes) >= 1 else None
-            odds2_raw = outcomes[1].get('odds') if len(outcomes) >= 2 else None
+            # Get stakes from payload first, calculate optimal as fallback
+            stake1_from_payload = outcomes[0].get('stake') if len(outcomes) >= 1 else None
+            stake2_from_payload = outcomes[1].get('stake') if len(outcomes) >= 2 else None
             
-            if odds1_raw and odds2_raw:
-                m1 = _odds_multiplier(str(odds1_raw))
-                m2 = _odds_multiplier(str(odds2_raw))
-                if m1 > 0 and m2 > 0:
-                    # Calculate optimal stakes (equal payout formula)
-                    P = bet.total_stake / (1/m1 + 1/m2)
-                    stake1 = P / m1
-                    stake2 = P / m2
+            if stake1_from_payload and stake2_from_payload:
+                # Use real stakes from payload
+                stake1 = _to_float(stake1_from_payload)
+                stake2 = _to_float(stake2_from_payload)
+            else:
+                # Calculate optimal stakes as fallback
+                odds1_raw = outcomes[0].get('odds') if len(outcomes) >= 1 else None
+                odds2_raw = outcomes[1].get('odds') if len(outcomes) >= 2 else None
+                
+                if odds1_raw and odds2_raw:
+                    m1 = _odds_multiplier(str(odds1_raw))
+                    m2 = _odds_multiplier(str(odds2_raw))
+                    if m1 > 0 and m2 > 0:
+                        # Calculate optimal stakes (equal payout formula)
+                        P = bet.total_stake / (1/m1 + 1/m2)
+                        stake1 = P / m1
+                        stake2 = P / m2
+                    else:
+                        stake1 = stake2 = bet.total_stake / 2
                 else:
                     stake1 = stake2 = bet.total_stake / 2
-            else:
-                stake1 = stake2 = bet.total_stake / 2
             
             if len(outcomes) >= 1:
                 o1 = outcomes[0]
