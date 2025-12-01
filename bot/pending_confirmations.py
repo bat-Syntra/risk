@@ -3,6 +3,7 @@ Handler pour gérer les confirmations en attente - BLOQUE l'accès au menu
 si des confirmations sont nécessaires
 """
 import logging
+import asyncio
 from datetime import date, datetime
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -69,6 +70,15 @@ def check_pending_confirmations_count(user_id: int) -> int:
                 logger.info(f"[CHECK] Bet {bet.id} NOT READY")
         
         logger.info(f"[CHECK] TOTAL READY: {ready_count}/{len(pending_bets)}")
+        
+        # 🔴 Notify web clients via WebSocket if confirmations are ready
+        if ready_count > 0:
+            try:
+                from api.web_api import notify_new_confirmation
+                asyncio.create_task(notify_new_confirmation(user_id, ready_count))
+            except Exception as e:
+                logger.debug(f"Could not send WebSocket notification: {e}")
+        
         return ready_count
     except Exception as e:
         logger.error(f"Error checking pending confirmations: {e}")

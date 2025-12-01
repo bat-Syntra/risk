@@ -54,6 +54,15 @@ async def notify_new_call(call_data: dict):
         "data": call_data
     })
 
+# Function to notify all connected clients of new confirmations
+async def notify_new_confirmation(user_id: int, count: int):
+    """Call this when a bet needs confirmation to notify web clients instantly"""
+    await manager.broadcast({
+        "type": "new_confirmation",
+        "user_id": user_id,
+        "count": count
+    })
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time updates"""
