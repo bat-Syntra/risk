@@ -55,13 +55,20 @@ def check_pending_confirmations_count(user_id: int) -> int:
         # 2. No match date, but bet was placed YESTERDAY or before (not today!)
         ready_count = 0
         for bet in pending_bets:
+            logger.info(f"[CHECK] Bet {bet.id}: match_date={bet.match_date} (type={type(bet.match_date)}), bet_date={bet.bet_date} (type={type(bet.bet_date)}), today={today} (type={type(today)})")
+            
             # Case 1: Match date is known and already passed
             if bet.match_date and bet.match_date < today:  # Strict < to wait until day AFTER match
                 ready_count += 1
+                logger.info(f"[CHECK] Bet {bet.id} READY (match_date < today)")
             # Case 2: No match date, but bet was placed YESTERDAY or before (not today!)
             elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
                 ready_count += 1
+                logger.info(f"[CHECK] Bet {bet.id} READY (bet_date < today)")
+            else:
+                logger.info(f"[CHECK] Bet {bet.id} NOT READY")
         
+        logger.info(f"[CHECK] TOTAL READY: {ready_count}/{len(pending_bets)}")
         return ready_count
     except Exception as e:
         logger.error(f"Error checking pending confirmations: {e}")
