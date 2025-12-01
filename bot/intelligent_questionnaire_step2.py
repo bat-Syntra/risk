@@ -221,11 +221,19 @@ async def ask_match_date(callback: types.CallbackQuery, bet: UserBet, lang: str)
     Ask if user knows the match date (Step 2B)
     """
     match_name = bet.match_name or "Match"
+    sport_name = bet.sport or ""
+    
+    # Get bet details
+    bet_date_str = bet.bet_date.strftime("%Y-%m-%d") if bet.bet_date else "N/A"
+    sport_line = f"🏆 {sport_name}\n" if sport_name else ""
     
     if lang == 'fr':
         text = (
             f"📅 <b>DATE DU MATCH</b>\n\n"
-            f"⚽ <b>{match_name}</b>\n\n"
+            f"⚽ <b>{match_name}</b>\n"
+            f"{sport_line}"
+            f"📅 Bet placé: {bet_date_str}\n"
+            f"💵 Misé: ${bet.total_stake:.2f}\n\n"
             f"❓ <b>Connais-tu la date du match?</b>"
         )
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
@@ -237,7 +245,10 @@ async def ask_match_date(callback: types.CallbackQuery, bet: UserBet, lang: str)
     else:
         text = (
             f"📅 <b>MATCH DATE</b>\n\n"
-            f"⚽ <b>{match_name}</b>\n\n"
+            f"⚽ <b>{match_name}</b>\n"
+            f"{sport_line}"
+            f"📅 Bet placed: {bet_date_str}\n"
+            f"💵 Staked: ${bet.total_stake:.2f}\n\n"
             f"❓ <b>Do you know the match date?</b>"
         )
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[

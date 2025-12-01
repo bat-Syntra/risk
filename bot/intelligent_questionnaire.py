@@ -107,12 +107,48 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
         bet_date_str = bet.bet_date.strftime("%Y-%m-%d") if bet.bet_date else "N/A"
         match_date_str = bet.match_date.strftime("%Y-%m-%d") if bet.match_date else "N/A"
         
+        # Get odds and details from drop_event
+        odds_info = ""
+        if bet.drop_event and bet.drop_event.payload:
+            try:
+                drop_data = bet.drop_event.payload
+                outcomes = drop_data.get('outcomes', [])
+                if len(outcomes) >= 2:
+                    o1, o2 = outcomes[0], outcomes[1]
+                    odds1 = o1.get('odds', 0)
+                    odds2 = o2.get('odds', 0)
+                    odds1_str = f"+{odds1}" if odds1 > 0 else str(odds1)
+                    odds2_str = f"+{odds2}" if odds2 > 0 else str(odds2)
+                    casino1 = o1.get('casino', 'N/A')
+                    casino2 = o2.get('casino', 'N/A')
+                    outcome1 = o1.get('outcome', 'N/A')
+                    outcome2 = o2.get('outcome', 'N/A')
+                    
+                    if lang == 'fr':
+                        odds_info = (
+                            f"📊 <b>Paris:</b>\n"
+                            f"• [{casino1}] {outcome1}: {odds1_str}\n"
+                            f"• [{casino2}] {outcome2}: {odds2_str}\n\n"
+                        )
+                    else:
+                        odds_info = (
+                            f"📊 <b>Bets:</b>\n"
+                            f"• [{casino1}] {outcome1}: {odds1_str}\n"
+                            f"• [{casino2}] {outcome2}: {odds2_str}\n\n"
+                        )
+            except Exception as e:
+                logger.warning(f"Could not extract odds info: {e}")
+        
+        # Build sport line
+        sport_line = f"🏆 {sport_name}\n" if sport_name else ""
+        
         # STEP 1: Ask if match has started
         if lang == 'fr':
             text = (
                 f"🎯 <b>CONFIRMATION NÉCESSAIRE</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
-                f"{'🏆 ' + sport_name if sport_name else ''}\n"
+                f"{sport_line}"
+                f"{odds_info}"
                 f"📅 Bet placé: {bet_date_str}\n"
                 f"💵 Misé: ${bet.total_stake:.2f}\n\n"
                 f"❓ <b>Le match a-t-il commencé?</b>"
@@ -129,7 +165,8 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
             text = (
                 f"🎯 <b>CONFIRMATION NEEDED</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
-                f"{'🏆 ' + sport_name if sport_name else ''}\n"
+                f"{sport_line}"
+                f"{odds_info}"
                 f"📅 Bet placed: {bet_date_str}\n"
                 f"💵 Staked: ${bet.total_stake:.2f}\n\n"
                 f"❓ <b>Has the match started?</b>"
@@ -156,265 +193,9 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
         )
         
         logger.info(f"✅ Sent STEP 1 questionnaire for bet {bet.id} to user {bet.user_id}")
-        return
-        
-        # OLD CODE BELOW - Will be triggered by callbacks
-        bet_date_str = bet.bet_date.strftime("%Y-%m-%d") if bet.bet_date else "N/A"
-        match_date_str = bet.match_date.strftime("%Y-%m-%d") if bet.match_date else "N/A"
-        
-        # Get odds and other info from drop_event if available
-        odds_info = ""
-        if bet.drop_event and bet.drop_event.payload:
-            try:
-                import json
-                drop_data = bet.drop_event.payload
-                outcomes = drop_data.get('outcomes', [])
-                if len(outcomes) >= 2:
-                    o1, o2 = outcomes[0], outcomes[1]
-                    odds1 = o1.get('odds', 0)
-                    odds2 = o2.get('odds', 0)
-                    odds1_str = f"+{odds1}" if odds1 > 0 else str(odds1)
-                    odds2_str = f"+{odds2}" if odds2 > 0 else str(odds2)
-                    casino1 = o1.get('casino', 'N/A')
-                    casino2 = o2.get('casino', 'N/A')
-                    outcome1 = o1.get('outcome', 'N/A')
-                    outcome2 = o2.get('outcome', 'N/A')
-                    
-                    if lang == 'fr':
-                        odds_info = (
-                            f"\n📊 <b>Détails des paris:</b>\n"
-                            f"• [{casino1}] {outcome1}: {odds1_str}\n"
-                            f"• [{casino2}] {outcome2}: {odds2_str}\n"
-                        )
-                    else:
-                        odds_info = (
-                            f"\n📊 <b>Bet details:</b>\n"
-                            f"• [{casino1}] {outcome1}: {odds1_str}\n"
-                            f"• [{casino2}] {outcome2}: {odds2_str}\n"
-                        )
-            except Exception as e:
-                logger.warning(f"Could not extract odds info: {e}")
-        
-        # Build sport/league line
-        sport_line = f"🏆 {sport_name}\n" if sport_name else ""
-        
-        # Build questionnaire based on bet type
-        if bet_type == 'middle':
-            jackpot_profit = bet.expected_profit if bet.expected_profit else 0
-            
-            # Calculate min_profit (arbitrage profit)
-            min_profit = 0.0
-            if bet.drop_event and bet.drop_event.payload:
-                try:
-                    drop_data = bet.drop_event.payload
-                    side_a = drop_data.get('side_a', {})
-                    side_b = drop_data.get('side_b', {})
-                    if side_a and side_b and 'odds' in side_a and 'odds' in side_b and 'line' in side_a and 'line' in side_b:
-                        from utils.middle_calculator import classify_middle_type
-                        cls = classify_middle_type(side_a, side_b, bet.total_stake)
-                        min_profit = min(cls['profit_scenario_1'], cls['profit_scenario_3'])
-                except Exception as e:
-                    logger.warning(f"Could not calculate min_profit: {e}")
-            
-            if lang == 'fr':
-                text = (
-                    f"🎲 <b>MIDDLE BET - CONFIRMATION NÉCESSAIRE</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placé: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Misé: <b>${bet.total_stake:.2f}</b>\n"
-                    f"💰 Profit si 1 bet hit: <b>${min_profit:+.2f}</b> (arbitrage)\n"
-                    f"🎰 Profit si jackpot: <b>${jackpot_profit:+.2f}</b>\n\n"
-                    f"📊 Résultat du Middle:"
-                )
-                jackpot_btn = types.InlineKeyboardButton(
-                    text="🎰 JACKPOT! (les 2 ont gagné)",
-                    callback_data=f"middle_outcome_{bet.id}_jackpot"
-                )
-                arb_btn = types.InlineKeyboardButton(
-                    text="✅ ARBITRAGE (1 seul a gagné - profit min)",
-                    callback_data=f"middle_outcome_{bet.id}_arb"
-                )
-                lost_btn = types.InlineKeyboardButton(
-                    text="❌ PERDU (erreur humaine)",
-                    callback_data=f"middle_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match pas encore joué",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            else:
-                text = (
-                    f"🎲 <b>MIDDLE BET - CONFIRMATION NEEDED</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placed: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Staked: <b>${bet.total_stake:.2f}</b>\n"
-                    f"💰 Profit if 1 bet hits: <b>${min_profit:+.2f}</b> (arbitrage)\n"
-                    f"🎰 Profit if jackpot: <b>${jackpot_profit:+.2f}</b>\n\n"
-                    f"📊 Middle result:"
-                )
-                jackpot_btn = types.InlineKeyboardButton(
-                    text="🎰 JACKPOT! (both won)",
-                    callback_data=f"middle_outcome_{bet.id}_jackpot"
-                )
-                arb_btn = types.InlineKeyboardButton(
-                    text="✅ ARBITRAGE (only 1 won - min profit)",
-                    callback_data=f"middle_outcome_{bet.id}_arb"
-                )
-                lost_btn = types.InlineKeyboardButton(
-                    text="❌ LOST (human error)",
-                    callback_data=f"middle_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match not played yet",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            
-            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [jackpot_btn],
-                [arb_btn],
-                [lost_btn],
-                [not_played_btn]
-            ])
-        
-        elif bet_type == 'arbitrage':
-            guaranteed_profit = bet.expected_profit if bet.expected_profit else 0
-            roi_percent = (guaranteed_profit / bet.total_stake * 100) if bet.total_stake > 0 else 0
-            
-            if lang == 'fr':
-                text = (
-                    f"✅ <b>ARBITRAGE - CONFIRMATION NÉCESSAIRE</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placé: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Misé: <b>${bet.total_stake:.2f}</b>\n"
-                    f"💰 Profit garanti: <b>${guaranteed_profit:+.2f}</b> (ROI: {roi_percent:.2f}%)\n\n"
-                    f"As-tu bien reçu ton profit?"
-                )
-                yes_btn = types.InlineKeyboardButton(
-                    text="✅ OUI - J'ai reçu mon profit",
-                    callback_data=f"arb_outcome_{bet.id}_won"
-                )
-                no_btn = types.InlineKeyboardButton(
-                    text="❌ NON - Problème",
-                    callback_data=f"arb_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match pas encore joué",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            else:
-                text = (
-                    f"✅ <b>ARBITRAGE - CONFIRMATION NEEDED</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placed: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Staked: <b>${bet.total_stake:.2f}</b>\n"
-                    f"💰 Guaranteed profit: <b>${guaranteed_profit:+.2f}</b> (ROI: {roi_percent:.2f}%)\n\n"
-                    f"Did you receive your profit?"
-                )
-                yes_btn = types.InlineKeyboardButton(
-                    text="✅ YES - I got my profit",
-                    callback_data=f"arb_outcome_{bet.id}_won"
-                )
-                no_btn = types.InlineKeyboardButton(
-                    text="❌ NO - Problem",
-                    callback_data=f"arb_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match not played yet",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            
-            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [yes_btn],
-                [no_btn],
-                [not_played_btn]
-            ])
-        
-        elif bet_type == 'good_ev':
-            expected_ev = bet.expected_profit if bet.expected_profit else 0
-            
-            if lang == 'fr':
-                text = (
-                    f"📈 <b>GOOD EV - CONFIRMATION NÉCESSAIRE</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placé: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Misé: <b>${bet.total_stake:.2f}</b>\n"
-                    f"📊 EV prévu: <b>${expected_ev:+.2f}</b>\n\n"
-                    f"As-tu gagné ou perdu ce bet?"
-                )
-                won_btn = types.InlineKeyboardButton(
-                    text="✅ GAGNÉ",
-                    callback_data=f"ev_outcome_{bet.id}_won"
-                )
-                lost_btn = types.InlineKeyboardButton(
-                    text="❌ PERDU",
-                    callback_data=f"ev_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match pas encore joué",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            else:
-                text = (
-                    f"📈 <b>GOOD EV - CONFIRMATION NEEDED</b>\n\n"
-                    f"⚽ <b>{match_name}</b>\n"
-                    f"{sport_line}"
-                    f"🕐 Match: {match_date_str}\n"
-                    f"📅 Bet placed: {bet_date_str}\n"
-                    f"{odds_info}\n"
-                    f"💵 Staked: <b>${bet.total_stake:.2f}</b>\n"
-                    f"📊 Expected EV: <b>${expected_ev:+.2f}</b>\n\n"
-                    f"Did you win or lose this bet?"
-                )
-                won_btn = types.InlineKeyboardButton(
-                    text="✅ WON",
-                    callback_data=f"ev_outcome_{bet.id}_won"
-                )
-                lost_btn = types.InlineKeyboardButton(
-                    text="❌ LOST",
-                    callback_data=f"ev_outcome_{bet.id}_lost"
-                )
-                not_played_btn = types.InlineKeyboardButton(
-                    text="⏳ Match not played yet",
-                    callback_data=f"bet_notplayed_{bet.id}"
-                )
-            
-            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [won_btn],
-                [lost_btn],
-                [not_played_btn]
-            ])
-        
-        else:
-            logger.error(f"Unknown bet type: {bet_type}")
-            return
-        
-        await bot_instance.send_message(
-            bet.user_id,
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=keyboard
-        )
-        
-        logger.info(f"Sent {bet_type} questionnaire to user {bet.user_id} for bet {bet.id}")
         
     except Exception as e:
         logger.error(f"Error sending bet questionnaire for bet {bet.id}: {e}")
-
 
 async def intelligent_questionnaire_loop(bot_instance):
     """
