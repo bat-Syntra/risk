@@ -117,8 +117,18 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
                     o1, o2 = outcomes[0], outcomes[1]
                     odds1 = o1.get('odds', 0)
                     odds2 = o2.get('odds', 0)
-                    odds1_str = f"+{odds1}" if odds1 > 0 else str(odds1)
-                    odds2_str = f"+{odds2}" if odds2 > 0 else str(odds2)
+                    
+                    # Convert odds to string safely
+                    if isinstance(odds1, str):
+                        odds1_str = odds1
+                    else:
+                        odds1_str = f"+{odds1}" if odds1 > 0 else str(odds1)
+                    
+                    if isinstance(odds2, str):
+                        odds2_str = odds2
+                    else:
+                        odds2_str = f"+{odds2}" if odds2 > 0 else str(odds2)
+                    
                     casino1 = o1.get('casino', 'N/A')
                     casino2 = o2.get('casino', 'N/A')
                     outcome1 = o1.get('outcome', 'N/A')
