@@ -2,6 +2,7 @@
 User command handlers for Telegram bot
 Handles: /start, /help, /subscribe, /mystats, /referral, /settings
 """
+import logging
 from aiogram import Bot, F, types, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -11,6 +12,8 @@ from aiogram.enums import ParseMode
 import os
 from datetime import datetime, date, timedelta
 from sqlalchemy import func, case, text, and_
+
+logger = logging.getLogger(__name__)
 
 from database import SessionLocal
 from models.user import User, TierLevel
