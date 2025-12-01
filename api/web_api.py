@@ -796,11 +796,10 @@ async def get_calendar_data(
         target_year = year if year else now.year
         target_month = month if month else now.month
         
-        # Get all confirmed bets for this user in the target month
+        # Get all bets for this user in the target month (any status)
         bets = db.query(UserBet).filter(
             and_(
                 UserBet.user_id == telegram_id,
-                UserBet.status.in_(['confirmed', 'won', 'lost']),
                 extract('year', UserBet.bet_date) == target_year,
                 extract('month', UserBet.bet_date) == target_month
             )
