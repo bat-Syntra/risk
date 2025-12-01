@@ -5,10 +5,11 @@ These endpoints are called by the web dashboard (risk0-web)
 import json
 import asyncio
 import re
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from datetime import datetime, timedelta, date
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
 from typing import Optional, List, Set
+from sqlalchemy import func, and_, extract
 from database import SessionLocal
 from models.user import User
 from models.drop_event import DropEvent
@@ -774,6 +775,96 @@ async def remove_bet(drop_event_id: int, user_id: int):
         return {"success": True, "message": f"Removed {len(bets)} bet(s)"}
     except Exception as e:
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@router.get("/calendar/{telegram_id}")
+async def get_calendar_data(
+    telegram_id: int,
+    year: int = Query(None, description="Year (defaults to current)"),
+    month: int = Query(None, description="Month 1-12 (defaults to current)")
+):
+    """
+    Get P&L calendar data for a specific month
+    Returns daily P&L, bets count, and strategy breakdown
+    """
+    db = SessionLocal()
+    try:
+        # Default to current month if not specified
+        now = datetime.now()
+        target_year = year if year else now.year
+        target_month = month if month else now.month
+        
+        # Get all confirmed bets for this user in the target month
+        bets = db.query(UserBet).filter(
+            and_(
+                UserBet.user_id == telegram_id,
+                UserBet.status.in_(['confirmed', 'won', 'lost']),
+                extract('year', UserBet.confirmed_at) == target_year,
+                extract('month', UserBet.confirmed_at) == target_month
+            )
+        ).all()
+        
+        # Group bets by day
+        days_data = {}
+        for bet in bets:
+            if not bet.confirmed_at:
+                continue
+                
+            day = bet.confirmed_at.day
+            if day not in days_data:
+                days_data[day] = {
+                    'date': day,
+                    'pnl': 0,
+                    'bets': 0,
+                    'wins': 0,
+                    'losses': 0,
+                    'strategies': {
+                        'arb': 0,
+                        'mid': 0,
+                        'ev': 0,
+                        'parlays': 0
+                    }
+                }
+            
+            # Add P&L
+            profit = bet.actual_profit if bet.actual_profit is not None else (bet.expected_profit or 0)
+            days_data[day]['pnl'] += profit
+            days_data[day]['bets'] += 1
+            
+            # Track wins/losses
+            if profit > 0:
+                days_data[day]['wins'] += 1
+            elif profit < 0:
+                days_data[day]['losses'] += 1
+            
+            # Track by strategy
+            bet_type = bet.bet_type or 'arbitrage'
+            if bet_type == 'arbitrage':
+                days_data[day]['strategies']['arb'] += profit
+            elif bet_type == 'middle':
+                days_data[day]['strategies']['mid'] += profit
+            elif bet_type == 'good_ev':
+                days_data[day]['strategies']['ev'] += profit
+            elif bet_type == 'parlay':
+                days_data[day]['strategies']['parlays'] += profit
+        
+        # Calculate win rate per day
+        for day_data in days_data.values():
+            total = day_data['wins'] + day_data['losses']
+            day_data['winRate'] = (day_data['wins'] / total * 100) if total > 0 else 0
+        
+        # Convert to list and sort by date
+        days_list = sorted(days_data.values(), key=lambda x: x['date'])
+        
+        return {
+            "year": target_year,
+            "month": target_month,
+            "days": days_list
+        }
+        
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
