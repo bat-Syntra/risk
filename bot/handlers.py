@@ -357,6 +357,15 @@ async def start_command(message: types.Message, state: FSMContext):
                 )
             ).all()
             
+            # Filter to only ready bets
+            today = date.today()
+            ready_bets = []
+            for bet in pending_bets:
+                if bet.match_date and bet.match_date < today:
+                    ready_bets.append(bet)
+                elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                    ready_bets.append(bet)
+            
             # Build confirmation message
             if lang == 'fr':
                 menu_text = f"📋 <b>CONFIRMATIONS EN ATTENTE</b>\n\n⚠️ <b>{len(ready_bets)} confirmation(s) nécessaire(s):</b>\n"
@@ -2401,6 +2410,15 @@ async def callback_main_menu(callback: types.CallbackQuery):
                     UserBet.status == 'pending'
                 )
             ).all()
+            
+            # Filter to only ready bets
+            today = date.today()
+            ready_bets = []
+            for bet in pending_bets:
+                if bet.match_date and bet.match_date < today:
+                    ready_bets.append(bet)
+                elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                    ready_bets.append(bet)
             
             # Build confirmation message
             if lang == 'fr':

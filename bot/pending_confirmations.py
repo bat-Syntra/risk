@@ -101,7 +101,8 @@ async def start_confirmations(callback: types.CallbackQuery):
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = user.language if user else 'en'
         
-        # Find ALL pending bets (no date filtering)
+        # Find pending bets ready for confirmation
+        today = date.today()
         pending_bets = db.query(UserBet).filter(
             and_(
                 UserBet.user_id == user_id,
@@ -109,7 +110,15 @@ async def start_confirmations(callback: types.CallbackQuery):
             )
         ).all()
         
-        if not pending_bets:
+        # Filter to ready bets
+        ready_bets = []
+        for bet in pending_bets:
+            if bet.match_date and bet.match_date < today:
+                ready_bets.append(bet)
+            elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                ready_bets.append(bet)
+        
+        if not ready_bets:
             if lang == 'fr':
                 await callback.message.edit_text(
                     "✅ <b>Aucune confirmation en attente!</b>\n\n"
@@ -132,7 +141,7 @@ async def start_confirmations(callback: types.CallbackQuery):
         from bot.intelligent_questionnaire import send_bet_questionnaire
         
         sent_count = 0
-        for bet in pending_bets[:20]:  # Max 20 à la fois
+        for bet in ready_bets[:20]:  # Max 20 à la fois
             try:
                 await send_bet_questionnaire(callback.bot, bet, lang)
                 sent_count += 1
@@ -291,7 +300,8 @@ async def resend_all_questionnaires(callback: types.CallbackQuery):
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = user.language if user else 'en'
         
-        # Find ALL pending bets (no date filtering)
+        # Find pending bets ready for confirmation
+        today = date.today()
         pending_bets = db.query(UserBet).filter(
             and_(
                 UserBet.user_id == user_id,
@@ -299,7 +309,15 @@ async def resend_all_questionnaires(callback: types.CallbackQuery):
             )
         ).all()
         
-        if not pending_bets:
+        # Filter to ready bets
+        ready_bets = []
+        for bet in pending_bets:
+            if bet.match_date and bet.match_date < today:
+                ready_bets.append(bet)
+            elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                ready_bets.append(bet)
+        
+        if not ready_bets:
             if lang == 'fr':
                 await callback.message.edit_text(
                     "✅ <b>Aucune confirmation en attente!</b>\n\n"
