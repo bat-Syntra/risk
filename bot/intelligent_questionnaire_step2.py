@@ -150,35 +150,74 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
         guaranteed_profit = bet.expected_profit if bet.expected_profit else 0
         roi_percent = (guaranteed_profit / bet.total_stake * 100) if bet.total_stake > 0 else 0
         
+        # Extract casino profits from drop_event
+        casino1_profit = 0
+        casino2_profit = 0
+        casino1_name = "Casino A"
+        casino2_name = "Casino B"
+        
+        if bet.drop_event and bet.drop_event.payload:
+            try:
+                drop_data = bet.drop_event.payload
+                outcomes = drop_data.get('outcomes', [])
+                if len(outcomes) >= 2:
+                    o1, o2 = outcomes[0], outcomes[1]
+                    casino1_name = o1.get('casino', 'Casino A')
+                    casino2_name = o2.get('casino', 'Casino B')
+                    
+                    # Calculate profit for each casino win
+                    stake1 = o1.get('stake', bet.total_stake / 2)
+                    stake2 = o2.get('stake', bet.total_stake / 2)
+                    payout1 = o1.get('payout', 0)
+                    payout2 = o2.get('payout', 0)
+                    
+                    casino1_profit = payout1 - bet.total_stake
+                    casino2_profit = payout2 - bet.total_stake
+            except Exception as e:
+                logger.warning(f"Could not calculate casino profits: {e}")
+        
         if lang == 'fr':
             text = (
                 f"✅ <b>ARBITRAGE - RÉSULTAT</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
-                f"💵 Misé: ${bet.total_stake:.2f}\n"
-                f"💰 Profit: ${guaranteed_profit:+.2f} ({roi_percent:.2f}%)\n\n"
-                f"As-tu reçu ton profit?"
+                f"💵 Misé total: ${bet.total_stake:.2f}\n"
+                f"💰 Profit garanti: ${guaranteed_profit:+.2f} ({roi_percent:.2f}%)\n\n"
+                f"❓ <b>Quel casino a gagné?</b>"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text="✅ OUI - J'ai reçu", callback_data=f"arb_outcome_{bet.id}_won")],
-                [types.InlineKeyboardButton(text="❌ NON - Problème", callback_data=f"arb_outcome_{bet.id}_lost")]
+                [types.InlineKeyboardButton(text=f"🎰 {casino1_name} (${casino1_profit:+.2f})", callback_data=f"arb_outcome_{bet.id}_casino1")],
+                [types.InlineKeyboardButton(text=f"🎰 {casino2_name} (${casino2_profit:+.2f})", callback_data=f"arb_outcome_{bet.id}_casino2")],
+                [types.InlineKeyboardButton(text="❌ Problème/Perdu", callback_data=f"arb_outcome_{bet.id}_lost")]
             ])
         else:
             text = (
                 f"✅ <b>ARBITRAGE - RESULT</b>\n\n"
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
-                f"💵 Staked: ${bet.total_stake:.2f}\n"
-                f"💰 Profit: ${guaranteed_profit:+.2f} ({roi_percent:.2f}%)\n\n"
-                f"Did you receive your profit?"
+                f"💵 Total staked: ${bet.total_stake:.2f}\n"
+                f"💰 Guaranteed profit: ${guaranteed_profit:+.2f} ({roi_percent:.2f}%)\n\n"
+                f"❓ <b>Which casino won?</b>"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text="✅ YES - Received", callback_data=f"arb_outcome_{bet.id}_won")],
-                [types.InlineKeyboardButton(text="❌ NO - Problem", callback_data=f"arb_outcome_{bet.id}_lost")]
+                [types.InlineKeyboardButton(text=f"🎰 {casino1_name} (${casino1_profit:+.2f})", callback_data=f"arb_outcome_{bet.id}_casino1")],
+                [types.InlineKeyboardButton(text=f"🎰 {casino2_name} (${casino2_profit:+.2f})", callback_data=f"arb_outcome_{bet.id}_casino2")],
+                [types.InlineKeyboardButton(text="❌ Problem/Lost", callback_data=f"arb_outcome_{bet.id}_lost")]
             ])
     
     else:  # good_ev
         expected_profit = bet.expected_profit if bet.expected_profit else 0
+        
+        # Calculate potential payout from odds
+        potential_payout = 0
+        if bet.drop_event and bet.drop_event.payload:
+            try:
+                drop_data = bet.drop_event.payload
+                outcomes = drop_data.get('outcomes', [])
+                if len(outcomes) >= 1:
+                    potential_payout = outcomes[0].get('payout', 0)
+            except Exception as e:
+                logger.warning(f"Could not calculate potential payout: {e}")
         
         if lang == 'fr':
             text = (
@@ -186,7 +225,8 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
                 f"💵 Misé: ${bet.total_stake:.2f}\n"
-                f"📊 EV: ${expected_profit:+.2f}\n\n"
+                f"💰 Si win: ${potential_payout:.2f} (profit: ${potential_payout - bet.total_stake:+.2f})\n"
+                f"📊 EV prévu: ${expected_profit:+.2f}\n\n"
                 f"As-tu gagné ou perdu?"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
@@ -200,7 +240,8 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
                 f"⚽ <b>{match_name}</b>\n"
                 f"{odds_info}\n"
                 f"💵 Staked: ${bet.total_stake:.2f}\n"
-                f"📊 EV: ${expected_profit:+.2f}\n\n"
+                f"💰 If win: ${potential_payout:.2f} (profit: ${potential_payout - bet.total_stake:+.2f})\n"
+                f"📊 Expected EV: ${expected_profit:+.2f}\n\n"
                 f"Did you win or lose?"
             )
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[

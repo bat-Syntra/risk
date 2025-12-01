@@ -24,10 +24,10 @@ router = Router()
 @router.callback_query(F.data.startswith("arb_outcome_"))
 async def callback_arb_outcome(callback: types.CallbackQuery):
     """
-    Handle arbitrage outcome confirmation (won or lost).
+    Handle arbitrage outcome confirmation (casino1, casino2, or lost).
     
     Format: arb_outcome_<bet_id>_<outcome>
-    where outcome = 'won' or 'lost'
+    where outcome = 'casino1', 'casino2', 'won', or 'lost'
     """
     await callback.answer()
     
@@ -38,9 +38,9 @@ async def callback_arb_outcome(callback: types.CallbackQuery):
             return
         
         bet_id = int(parts[2])
-        outcome = parts[3]  # 'won' or 'lost'
+        outcome = parts[3]  # 'casino1', 'casino2', 'won', or 'lost'
         
-        if outcome not in ['won', 'lost']:
+        if outcome not in ['casino1', 'casino2', 'won', 'lost']:
             await callback.answer("❌ Outcome invalide", show_alert=True)
             return
         
@@ -59,9 +59,32 @@ async def callback_arb_outcome(callback: types.CallbackQuery):
             user = db.query(User).filter(User.telegram_id == bet.user_id).first()
             lang = user.language if user else 'en'
             
-            # Update bet
-            if outcome == 'won':
-                bet.actual_profit = bet.expected_profit  # Profit garanti
+            # Update bet - calculate profit based on which casino won
+            if outcome in ['casino1', 'casino2', 'won']:
+                # Extract actual profit from drop_event
+                actual_profit = bet.expected_profit  # Default
+                
+                if outcome == 'casino1' and bet.drop_event and bet.drop_event.payload:
+                    try:
+                        drop_data = bet.drop_event.payload
+                        outcomes = drop_data.get('outcomes', [])
+                        if len(outcomes) >= 1:
+                            payout1 = outcomes[0].get('payout', 0)
+                            actual_profit = payout1 - bet.total_stake
+                    except Exception as e:
+                        logger.warning(f"Could not calculate casino1 profit: {e}")
+                
+                elif outcome == 'casino2' and bet.drop_event and bet.drop_event.payload:
+                    try:
+                        drop_data = bet.drop_event.payload
+                        outcomes = drop_data.get('outcomes', [])
+                        if len(outcomes) >= 2:
+                            payout2 = outcomes[1].get('payout', 0)
+                            actual_profit = payout2 - bet.total_stake
+                    except Exception as e:
+                        logger.warning(f"Could not calculate casino2 profit: {e}")
+                
+                bet.actual_profit = actual_profit
                 bet.status = 'won'
                 
                 if lang == 'fr':
