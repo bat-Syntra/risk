@@ -364,6 +364,215 @@ async def get_user_bets(user_id: int):
 
 
 # ========================================
+# CONFIRM BET RESULT (from Web)
+# ========================================
+
+@router.post("/bets/{bet_id}/confirm")
+async def confirm_bet_result(bet_id: int, outcome: str, user_id: int):
+    """
+    Confirm bet result from web dashboard.
+    
+    Args:
+        bet_id: ID of the bet to confirm
+        outcome: Result type:
+            - 'jackpot': Middle bet - both sides won
+            - 'casino1': Side A won (arbitrage profit for middle, or arb)
+            - 'casino2': Side B won (arbitrage profit for middle, or arb)
+            - 'won': Generic win (for arb/good_ev)
+            - 'lost': Lost (human error)
+        user_id: User's telegram ID (for verification)
+    """
+    db = SessionLocal()
+    try:
+        bet = db.query(UserBet).filter(UserBet.id == bet_id).first()
+        
+        if not bet:
+            raise HTTPException(status_code=404, detail="Bet not found")
+        
+        if bet.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        if bet.status != 'pending':
+            raise HTTPException(status_code=400, detail=f"Bet already confirmed as {bet.status}")
+        
+        # Calculate profit based on bet type and outcome
+        if bet.bet_type == 'middle':
+            # Calculate profits from drop_event
+            jackpot_profit = 0.0
+            casino1_profit = 0.0
+            casino2_profit = 0.0
+            
+            if bet.drop_event and bet.drop_event.payload:
+                try:
+                    drop_data = bet.drop_event.payload
+                    side_a = drop_data.get('side_a', {})
+                    side_b = drop_data.get('side_b', {})
+                    
+                    if side_a and side_b and 'odds' in side_a and 'odds' in side_b:
+                        from utils.middle_calculator import classify_middle_type
+                        cls = classify_middle_type(side_a, side_b, bet.total_stake)
+                        casino1_profit = cls['profit_scenario_1']
+                        casino2_profit = cls['profit_scenario_3']
+                        jackpot_profit = cls['profit_scenario_2']
+                except Exception as e:
+                    logger.warning(f"Could not calculate middle profits: {e}")
+            
+            if outcome == 'jackpot':
+                bet.actual_profit = jackpot_profit if jackpot_profit else bet.expected_profit
+                bet.status = 'won'
+            elif outcome == 'casino1':
+                bet.actual_profit = casino1_profit
+                bet.status = 'won'
+            elif outcome == 'casino2':
+                bet.actual_profit = casino2_profit
+                bet.status = 'won'
+            else:  # lost
+                bet.actual_profit = -bet.total_stake
+                bet.status = 'lost'
+        
+        elif bet.bet_type == 'arbitrage':
+            if outcome in ['casino1', 'casino2', 'won']:
+                bet.actual_profit = bet.expected_profit  # Guaranteed profit
+                bet.status = 'won'
+            else:  # lost
+                bet.actual_profit = -bet.total_stake
+                bet.status = 'lost'
+        
+        else:  # good_ev
+            if outcome == 'won':
+                # Calculate win from odds
+                if bet.drop_event and bet.drop_event.payload:
+                    outcomes = bet.drop_event.payload.get('outcomes', [])
+                    if outcomes:
+                        payout = outcomes[0].get('payout', bet.total_stake * 2)
+                        bet.actual_profit = payout - bet.total_stake
+                    else:
+                        bet.actual_profit = bet.expected_profit
+                else:
+                    bet.actual_profit = bet.expected_profit
+                bet.status = 'won'
+            else:  # lost
+                bet.actual_profit = -bet.total_stake
+                bet.status = 'lost'
+        
+        # Update DailyStats
+        from models.bet import DailyStats
+        daily_stat = db.query(DailyStats).filter(
+            DailyStats.user_id == bet.user_id,
+            DailyStats.date == bet.bet_date
+        ).first()
+        
+        if daily_stat:
+            daily_stat.total_profit -= bet.expected_profit or 0
+            daily_stat.total_profit += bet.actual_profit
+            daily_stat.confirmed = True
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "bet": {
+                "id": bet.id,
+                "status": bet.status,
+                "actualProfit": bet.actual_profit,
+                "expectedProfit": bet.expected_profit
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error confirming bet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.get("/user/{telegram_id}/pending-confirmations")
+async def get_pending_confirmations(telegram_id: int):
+    """Get all bets pending confirmation for a user"""
+    db = SessionLocal()
+    try:
+        from datetime import date
+        today = date.today()
+        
+        bets = db.query(UserBet).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.status == 'pending'
+        ).order_by(UserBet.bet_date.desc()).all()
+        
+        # Filter to ready bets (match date passed or no date + bet date passed)
+        ready_bets = []
+        for bet in bets:
+            if bet.match_date and bet.match_date < today:
+                ready_bets.append(bet)
+            elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+                ready_bets.append(bet)
+        
+        result = []
+        for bet in ready_bets:
+            # Get side info from drop_event
+            side_a = {}
+            side_b = {}
+            jackpot_profit = 0
+            casino1_profit = 0
+            casino2_profit = 0
+            
+            if bet.drop_event and bet.drop_event.payload:
+                drop_data = bet.drop_event.payload
+                side_a = drop_data.get('side_a', {})
+                side_b = drop_data.get('side_b', {})
+                
+                if bet.bet_type == 'middle' and side_a and side_b:
+                    try:
+                        from utils.middle_calculator import classify_middle_type
+                        cls = classify_middle_type(side_a, side_b, bet.total_stake)
+                        casino1_profit = cls['profit_scenario_1']
+                        casino2_profit = cls['profit_scenario_3']
+                        jackpot_profit = cls['profit_scenario_2']
+                    except:
+                        pass
+            
+            result.append({
+                "id": bet.id,
+                "betType": bet.bet_type,
+                "matchName": bet.match_name,
+                "sport": bet.sport,
+                "betDate": bet.bet_date.isoformat() if bet.bet_date else None,
+                "matchDate": bet.match_date.isoformat() if bet.match_date else None,
+                "totalStake": bet.total_stake,
+                "expectedProfit": bet.expected_profit,
+                "sideA": {
+                    "bookmaker": side_a.get('bookmaker', side_a.get('casino', '')),
+                    "selection": side_a.get('selection', ''),
+                    "odds": side_a.get('odds', ''),
+                    "line": side_a.get('line', '')
+                },
+                "sideB": {
+                    "bookmaker": side_b.get('bookmaker', side_b.get('casino', '')),
+                    "selection": side_b.get('selection', ''),
+                    "odds": side_b.get('odds', ''),
+                    "line": side_b.get('line', '')
+                },
+                "profits": {
+                    "jackpot": jackpot_profit,
+                    "casino1": casino1_profit,
+                    "casino2": casino2_profit,
+                    "guaranteed": bet.expected_profit
+                }
+            })
+        
+        return {
+            "pendingCount": len(ready_bets),
+            "bets": result
+        }
+        
+    finally:
+        db.close()
+
+
+# ========================================
 # RECENT BETS (for My Stats page)
 # ========================================
 
