@@ -402,8 +402,14 @@ async def start_command(message: types.Message, state: FSMContext):
             )
             # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
             bet_focus = getattr(user, 'bet_focus_mode', False)
+            # Generate auth token for dashboard
+            import base64, json, time as time_module
+            dash_token = base64.b64encode(json.dumps({"telegram_id": str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}).encode()).decode()
+            dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
+            
             if user.tier == TierLevel.PREMIUM:
                 keyboard = [
+                    [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
                     [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
                     [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
                     [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
@@ -418,6 +424,7 @@ async def start_command(message: types.Message, state: FSMContext):
                     ])
             else:
                 keyboard = [
+                    [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
                     [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
                     [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
                     [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
@@ -2456,8 +2463,14 @@ async def callback_main_menu(callback: types.CallbackQuery):
             )
             # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
             bet_focus = getattr(user, 'bet_focus_mode', False)
+            # Generate auth token for dashboard
+            import base64, json, time as time_module
+            dash_token = base64.b64encode(json.dumps({"telegram_id": str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}).encode()).decode()
+            dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
+            
             if user.tier == TierLevel.PREMIUM:
                 keyboard = [
+                    [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
                     [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
                     [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
                     [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
@@ -2472,6 +2485,7 @@ async def callback_main_menu(callback: types.CallbackQuery):
                     ])
             else:
                 keyboard = [
+                    [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
                     [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
                     [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
                     [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
