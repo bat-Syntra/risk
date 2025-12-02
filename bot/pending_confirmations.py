@@ -43,6 +43,9 @@ def check_pending_confirmations_count(user_id: int) -> int:
     """
     db = SessionLocal()
     try:
+        # Force fresh data from DB (no cache)
+        db.expire_all()
+        
         today = date.today()
         pending_bets = db.query(UserBet).filter(
             and_(

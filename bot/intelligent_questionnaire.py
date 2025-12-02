@@ -98,6 +98,11 @@ async def send_bet_questionnaire(bot_instance, bet: UserBet, lang: str = 'fr'):
         lang: Langue de l'utilisateur ('fr' ou 'en')
     """
     try:
+        # CRITICAL: Skip if bet is already confirmed
+        if bet.status != 'pending':
+            logger.info(f"Skipping questionnaire for bet {bet.id} - already {bet.status}")
+            return
+        
         bet_type = bet.bet_type
         match_name = bet.match_name or "Match"
         sport_name = bet.sport or ""
