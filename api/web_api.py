@@ -1045,7 +1045,11 @@ async def get_calendar_data(
                         'arb': 0,
                         'mid': 0,
                         'ev': 0,
-                        'parlays': 0
+                        'parlays': 0,
+                        'arbBets': 0,
+                        'midBets': 0,
+                        'evBets': 0,
+                        'parlayBets': 0
                     }
                 }
             
@@ -1061,16 +1065,20 @@ async def get_calendar_data(
             elif profit < 0:
                 days_data[day]['losses'] += 1
             
-            # Track by strategy
+            # Track by strategy (profit AND bet count)
             bet_type = bet.bet_type or 'arbitrage'
             if bet_type == 'arbitrage':
                 days_data[day]['strategies']['arb'] += profit
+                days_data[day]['strategies']['arbBets'] += 1
             elif bet_type == 'middle':
                 days_data[day]['strategies']['mid'] += profit
+                days_data[day]['strategies']['midBets'] += 1
             elif bet_type == 'good_ev':
                 days_data[day]['strategies']['ev'] += profit
+                days_data[day]['strategies']['evBets'] += 1
             elif bet_type == 'parlay':
                 days_data[day]['strategies']['parlays'] += profit
+                days_data[day]['strategies']['parlayBets'] += 1
         
         # Calculate win rate per day
         for day_data in days_data.values():
