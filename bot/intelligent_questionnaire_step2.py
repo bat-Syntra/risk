@@ -108,10 +108,8 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
             logger.warning(f"Could not extract odds info: {e}")
     
     if bet_type == 'middle':
-        # Middle bet questions
-        jackpot_profit = bet.expected_profit if bet.expected_profit else 0
-        
-        # Calculate profits for each scenario
+        # Middle bet questions - calculate all profits from drop_event
+        jackpot_profit = 0.0
         casino1_profit = 0.0
         casino2_profit = 0.0
         casino1_name = "Casino A"
@@ -128,14 +126,19 @@ async def send_result_questions(callback: types.CallbackQuery, bet: UserBet, lan
                     cls = classify_middle_type(side_a, side_b, bet.total_stake)
                     
                     # Get casino names
-                    casino1_name = side_a.get('casino', 'Casino A')
-                    casino2_name = side_b.get('casino', 'Casino B')
+                    casino1_name = side_a.get('bookmaker', side_a.get('casino', 'Casino A'))
+                    casino2_name = side_b.get('bookmaker', side_b.get('casino', 'Casino B'))
                     
-                    # Profits when only one casino wins
-                    casino1_profit = cls['profit_scenario_1']  # Side A wins, Side B loses
-                    casino2_profit = cls['profit_scenario_3']  # Side B wins, Side A loses
+                    # Profits for each scenario:
+                    casino1_profit = cls['profit_scenario_1']  # Side A wins only
+                    casino2_profit = cls['profit_scenario_3']  # Side B wins only
+                    jackpot_profit = cls['profit_scenario_2']  # BOTH win (JACKPOT!)
             except Exception as e:
                 logger.warning(f"Could not calculate middle profits: {e}")
+        
+        # Fallback: if jackpot still 0, use expected_profit
+        if jackpot_profit == 0:
+            jackpot_profit = bet.expected_profit if bet.expected_profit else 0
         
         if lang == 'fr':
             text = (

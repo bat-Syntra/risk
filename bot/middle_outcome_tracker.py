@@ -59,32 +59,11 @@ async def callback_arb_outcome(callback: types.CallbackQuery):
             user = db.query(User).filter(User.telegram_id == bet.user_id).first()
             lang = user.language if user else 'en'
             
-            # Update bet - calculate profit based on which casino won
+            # Update bet - for arbitrage, profit is ALWAYS the expected_profit (guaranteed)
+            # The casino that won doesn't matter - we always get our guaranteed profit
             if outcome in ['casino1', 'casino2', 'won']:
-                # Extract actual profit from drop_event
-                actual_profit = bet.expected_profit  # Default
-                
-                if outcome == 'casino1' and bet.drop_event and bet.drop_event.payload:
-                    try:
-                        drop_data = bet.drop_event.payload
-                        outcomes = drop_data.get('outcomes', [])
-                        if len(outcomes) >= 1:
-                            payout1 = outcomes[0].get('payout', 0)
-                            actual_profit = payout1 - bet.total_stake
-                    except Exception as e:
-                        logger.warning(f"Could not calculate casino1 profit: {e}")
-                
-                elif outcome == 'casino2' and bet.drop_event and bet.drop_event.payload:
-                    try:
-                        drop_data = bet.drop_event.payload
-                        outcomes = drop_data.get('outcomes', [])
-                        if len(outcomes) >= 2:
-                            payout2 = outcomes[1].get('payout', 0)
-                            actual_profit = payout2 - bet.total_stake
-                    except Exception as e:
-                        logger.warning(f"Could not calculate casino2 profit: {e}")
-                
-                bet.actual_profit = actual_profit
+                # Arbitrage = guaranteed profit regardless of which casino wins
+                bet.actual_profit = bet.expected_profit
                 bet.status = 'won'
                 
                 if lang == 'fr':
@@ -325,6 +304,7 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
             # Calculate profits for each scenario from drop data
             casino1_profit = 0.0
             casino2_profit = 0.0
+            jackpot_profit = 0.0
             if bet.drop_event and bet.drop_event.payload:
                 try:
                     import json
@@ -336,18 +316,22 @@ async def callback_middle_outcome(callback: types.CallbackQuery):
                     if side_a and side_b and 'odds' in side_a and 'odds' in side_b and 'line' in side_a and 'line' in side_b:
                         from utils.middle_calculator import classify_middle_type
                         cls = classify_middle_type(side_a, side_b, bet.total_stake)
-                        casino1_profit = cls['profit_scenario_1']  # Side A wins, Side B loses
-                        casino2_profit = cls['profit_scenario_3']  # Side B wins, Side A loses
+                        casino1_profit = cls['profit_scenario_1']  # Side A wins only
+                        casino2_profit = cls['profit_scenario_3']  # Side B wins only
+                        jackpot_profit = cls['profit_scenario_2']  # BOTH win (JACKPOT!)
                     else:
                         logger.warning(f"Missing required fields in side_a or side_b for bet {bet.id}")
                 except Exception as e:
                     logger.warning(f"Could not calculate profits: {e}")
             
+            # Fallback for jackpot if not calculated
+            if jackpot_profit == 0:
+                jackpot_profit = bet.expected_profit if bet.expected_profit else 0
+            
             # Update bet based on outcome
             if outcome == 'jackpot':
                 # 🎰 JACKPOT! Les DEUX paris ont gagné
-                # actual_profit = expected_profit (which is the jackpot profit)
-                bet.actual_profit = bet.expected_profit
+                bet.actual_profit = jackpot_profit
                 bet.status = 'won'
                 
                 if lang == 'fr':

@@ -526,9 +526,11 @@ async def check_bets_without_date(bot_instance):
         db.close()
 
 
-@router.callback_query(F.data.startswith("match_passed_"))
-async def callback_match_passed(callback: types.CallbackQuery):
+# DISABLED: This handler is duplicated in intelligent_questionnaire_step2.py
+# @router.callback_query(F.data.startswith("match_passed_"))
+async def callback_match_passed_OLD(callback: types.CallbackQuery):
     """
+    DEPRECATED: Use intelligent_questionnaire_step2.py instead.
     Handle match status confirmation (yes/no/idk).
     """
     await callback.answer()

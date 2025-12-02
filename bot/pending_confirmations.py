@@ -349,11 +349,11 @@ async def resend_all_questionnaires(callback: types.CallbackQuery):
                 )
             return
         
-        # Send questionnaires
+        # Send questionnaires for READY bets only (not pending_bets!)
         from bot.intelligent_questionnaire import send_bet_questionnaire
         
         sent_count = 0
-        for bet in pending_bets[:10]:  # Max 10 à la fois pour ne pas spammer
+        for bet in ready_bets[:10]:  # Max 10 à la fois pour ne pas spammer
             try:
                 await send_bet_questionnaire(callback.bot, bet, lang)
                 sent_count += 1
