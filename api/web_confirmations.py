@@ -365,7 +365,7 @@ class BetUpdate(BaseModel):
     casino2_odds: str
 
 
-@router.post("/confirmations/{bet_id}/update")
+@router.post("/{bet_id}/update")
 async def update_bet_details(bet_id: int, update: BetUpdate):
     """Update bet stakes and odds, recalculate expected profit"""
     db = SessionLocal()
