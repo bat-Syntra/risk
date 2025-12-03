@@ -270,6 +270,12 @@ async def submit_confirmation_answer(bet_id: int, answer: ConfirmationAnswer):
             else:
                 return {"status": "postponed", "message": "Will ask again tomorrow."}
         
+        # Handle "mistake" case - delete the bet
+        if answer.answer == 'mistake':
+            db.delete(bet)
+            db.commit()
+            return {"status": "deleted", "message": "Bet removed - marked as misclick"}
+        
         # Calculate actual profit based on answer
         actual_profit = 0.0
         
