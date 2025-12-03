@@ -115,8 +115,10 @@ async def start_command(message: types.Message, state: FSMContext):
         pass
     
     # Handle deep link payloads (e.g., /start subscribe)
+    logger.info(f"[START] message.text = '{message.text}'")
     if message.text and len(message.text.split()) > 1:
         payload = message.text.split()[1].strip().lower()
+        logger.info(f"[START] payload detected = '{payload}'")
         if payload == 'subscribe':
             # Forward to subscribe_command (defined later in this file)
             # We need to create user first if they don't exist, then call subscribe
