@@ -14,7 +14,7 @@ from models.user import User, TierLevel
 logger = logging.getLogger(__name__)
 router = Router()
 
-WEB_API_URL = "https://smartrisk0.xyz/api/auth/check"
+WEB_API_URL = "https://api.syntra-trade.xyz/api/web/auth/confirm"
 
 from aiogram.filters import CommandStart
 
@@ -89,7 +89,8 @@ async def cmd_start_with_auth(message: types.Message):
     await authenticate_user(
         message.from_user.id,
         message.from_user.username,
-        auth_code
+        auth_code,
+        token
     )
     
     # Send direct link to dashboard
@@ -104,13 +105,14 @@ async def cmd_start_with_auth(message: types.Message):
         disable_web_page_preview=True
     )
 
-async def authenticate_user(telegram_id: int, username: str, auth_code: str):
+async def authenticate_user(telegram_id: int, username: str, auth_code: str, token: str):
     """Send authentication to web API"""
     try:
         payload = {
             "code": auth_code,
             "telegramId": telegram_id,
-            "username": username or f"User{telegram_id}"
+            "username": username or f"User{telegram_id}",
+            "token": token
         }
         logger.info(f"🌐 Sending POST to {WEB_API_URL}")
         logger.info(f"🌐 Payload: {payload}")

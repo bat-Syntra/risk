@@ -1139,3 +1139,58 @@ async def get_calendar_data(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+# ========== AUTH ENDPOINTS ==========
+# Store pending auth codes (in-memory, persistent since this runs continuously)
+import time
+pending_auth_codes: dict = {}
+
+class AuthConfirm(BaseModel):
+    code: str
+    telegramId: int
+    username: str
+    token: str  # The full token to return to the web
+
+
+@router.post("/auth/confirm")
+async def confirm_auth(data: AuthConfirm):
+    """Called by Telegram bot when user authenticates"""
+    pending_auth_codes[data.code] = {
+        "authenticated": True,
+        "telegramId": data.telegramId,
+        "username": data.username,
+        "token": data.token,
+        "timestamp": time.time()
+    }
+    print(f"✅ Auth confirmed for code {data.code}, user {data.username}")
+    return {"success": True}
+
+
+@router.get("/auth/check")
+async def check_auth(code: str):
+    """Called by web frontend to check if auth is complete"""
+    # Clean old codes (> 5 minutes)
+    now = time.time()
+    expired = [k for k, v in pending_auth_codes.items() if now - v["timestamp"] > 300]
+    for k in expired:
+        del pending_auth_codes[k]
+    
+    if code not in pending_auth_codes:
+        return {"authenticated": False}
+    
+    auth_data = pending_auth_codes[code]
+    if auth_data["authenticated"]:
+        # Return the token and clean up
+        token = auth_data["token"]
+        del pending_auth_codes[code]
+        return {
+            "authenticated": True,
+            "token": token,
+            "user": {
+                "telegramId": auth_data["telegramId"],
+                "username": auth_data["username"]
+            }
+        }
+    
+    return {"authenticated": False}
