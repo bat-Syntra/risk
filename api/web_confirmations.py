@@ -356,3 +356,79 @@ async def submit_confirmation_answer(bet_id: int, answer: ConfirmationAnswer):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+class BetUpdate(BaseModel):
+    casino1_stake: float
+    casino2_stake: float
+    casino1_odds: str
+    casino2_odds: str
+
+
+@router.post("/confirmations/{bet_id}/update")
+async def update_bet_details(bet_id: int, update: BetUpdate):
+    """Update bet stakes and odds, recalculate expected profit"""
+    db = SessionLocal()
+    try:
+        bet = db.query(UserBet).filter(UserBet.id == bet_id).first()
+        if not bet:
+            raise HTTPException(status_code=404, detail="Bet not found")
+        
+        # Update stakes
+        bet.casino1_stake = update.casino1_stake
+        bet.casino2_stake = update.casino2_stake
+        bet.total_stake = update.casino1_stake + update.casino2_stake
+        
+        # Update odds
+        bet.casino1_odds = update.casino1_odds
+        bet.casino2_odds = update.casino2_odds
+        
+        # Recalculate expected profit based on bet type
+        def calc_profit(stake: float, odds_str: str) -> float:
+            try:
+                odds = float(odds_str)
+                if odds > 0:
+                    return stake * (odds / 100)
+                else:
+                    return stake * (100 / abs(odds))
+            except:
+                return 0
+        
+        profit1 = calc_profit(update.casino1_stake, update.casino1_odds)
+        profit2 = calc_profit(update.casino2_stake, update.casino2_odds)
+        
+        if bet.bet_type == 'arbitrage':
+            # For arbitrage, expected profit is the minimum (guaranteed)
+            bet.expected_profit = min(
+                profit1 - update.casino2_stake,
+                profit2 - update.casino1_stake
+            )
+        elif bet.bet_type == 'middle':
+            # For middle, store guaranteed profit
+            bet.expected_profit = min(
+                profit1 - update.casino2_stake,
+                profit2 - update.casino1_stake
+            )
+        else:
+            # For good_ev, expected is stake * (odds - 1)
+            bet.expected_profit = profit1
+        
+        db.commit()
+        
+        return {
+            "status": "updated",
+            "bet_id": bet.id,
+            "total_stake": bet.total_stake,
+            "expected_profit": bet.expected_profit,
+            "casino1_profit": profit1 - update.casino2_stake,
+            "casino2_profit": profit2 - update.casino1_stake,
+            "jackpot_profit": profit1 + profit2 - bet.total_stake
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
