@@ -31,24 +31,12 @@ async def cmd_start_with_auth(message: types.Message):
     auth_code = args[1].replace("auth_", "")
     logger.info(f"🔍 Web auth /start received from user {message.from_user.id} with code {auth_code}")
     
-    # Generate a unique session token
     import base64
     import json
     import hashlib
     import time
     
-    timestamp = int(time.time())
-    session_id = hashlib.sha256(f"{message.from_user.id}_{timestamp}".encode()).hexdigest()[:16]
-    
-    token_data = {
-        "tid": message.from_user.id,
-        "user": message.from_user.username or f"User{message.from_user.id}",
-        "ts": timestamp,
-        "sid": session_id  # Unique session ID
-    }
-    token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
-    
-    # Check if user is ALPHA tier or admin
+    # Check if user exists and get tier
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
@@ -61,9 +49,32 @@ async def cmd_start_with_auth(message: types.Message):
             )
             return
         
-        # Only PREMIUM tier, free_access, or admin can access web dashboard
+        # Check access level
         is_admin = message.from_user.id in [6029059837, 8213628656, 8004919557]  # Admin IDs
         is_premium = user.tier == TierLevel.PREMIUM or user.free_access
+        
+        # Determine tier for token
+        if is_admin:
+            tier = "admin"
+        elif is_premium:
+            tier = "alpha"
+        elif user.tier == TierLevel.FREE:
+            tier = "free"
+        else:
+            tier = "beta"
+    
+        # Generate a unique session token WITH tier
+        timestamp = int(time.time())
+        session_id = hashlib.sha256(f"{message.from_user.id}_{timestamp}".encode()).hexdigest()[:16]
+        
+        token_data = {
+            "tid": message.from_user.id,
+            "user": message.from_user.username or f"User{message.from_user.id}",
+            "ts": timestamp,
+            "sid": session_id,
+            "tier": tier  # Include tier in token!
+        }
+        token = base64.urlsafe_b64encode(json.dumps(token_data).encode()).decode()
         
         if not is_admin and not is_premium:
             await message.reply(
