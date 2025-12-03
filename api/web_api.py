@@ -11,9 +11,11 @@ from pydantic import BaseModel
 from typing import Optional, List, Set
 from sqlalchemy import func, and_, extract, case
 from database import SessionLocal
-from models.user import User
+from models.user import User, TierLevel
 from models.drop_event import DropEvent
 from models.bet import UserBet
+from models.referral import Referral, ReferralSettings
+from core.referrals import ReferralManager
 
 router = APIRouter(prefix="/api/web", tags=["web"])
 
@@ -1194,3 +1196,103 @@ async def check_auth(code: str):
         }
     
     return {"authenticated": False}
+
+
+# ===== REFERRAL SYSTEM ENDPOINTS =====
+
+@router.get("/referrals/stats")
+async def get_referral_stats(telegram_id: int):
+    """
+    Get referral statistics for a user
+    Returns commission rate, active referrals, earnings, and referral list
+    """
+    db = SessionLocal()
+    try:
+        # Get user
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get or create referral code
+        referral_code = user.referral_code
+        if not referral_code:
+            referral_code = ReferralManager.create_user_referral_code(db, telegram_id)
+        
+        # Get dynamic commission rate
+        current_rate = ReferralManager.get_dynamic_tier1_rate(db, telegram_id)
+        
+        # Count active direct referrals
+        active_directs = ReferralManager.count_active_tier1(db, telegram_id)
+        
+        # Get all referrals with details
+        referrals_query = db.query(Referral, User).join(
+            User, User.telegram_id == Referral.referee_id
+        ).filter(
+            Referral.referrer_id == telegram_id
+        ).all()
+        
+        referrals_list = []
+        total_earnings = 0.0
+        monthly_recurring = 0.0
+        
+        for ref, ref_user in referrals_query:
+            # Calculate earnings from this referral
+            ref_earnings = ref.total_commission_earned or 0.0
+            total_earnings += ref_earnings
+            
+            # Calculate monthly value if active
+            if ref.is_active and ref_user.tier == TierLevel.PREMIUM:
+                # Assume $20/month subscription
+                monthly_value = 20.0 * current_rate
+                monthly_recurring += monthly_value
+            else:
+                monthly_value = 0.0
+            
+            referrals_list.append({
+                "username": ref_user.username or f"User{ref_user.telegram_id}",
+                "joinDate": ref.created_at.isoformat() if ref.created_at else datetime.now().isoformat(),
+                "status": "active" if ref.is_active else "inactive",
+                "monthlyValue": round(monthly_value, 2),
+                "totalEarned": round(ref_earnings, 2)
+            })
+        
+        # Check if user is Alpha (PREMIUM tier)
+        is_alpha = user.tier == TierLevel.PREMIUM
+        
+        return {
+            "currentRate": int(current_rate * 100),  # Convert to percentage
+            "activeDirects": active_directs,
+            "totalEarnings": round(total_earnings, 2),
+            "monthlyRecurring": round(monthly_recurring, 2),
+            "referralLink": f"https://t.me/risk0_bot?start=ref_{referral_code}",
+            "isAlpha": is_alpha,
+            "referrals": referrals_list
+        }
+        
+    except Exception as e:
+        print(f"Error fetching referral stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.get("/referrals/link")
+async def get_referral_link(telegram_id: int):
+    """Get or create referral link for a user"""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get or create referral code
+        referral_code = user.referral_code
+        if not referral_code:
+            referral_code = ReferralManager.create_user_referral_code(db, telegram_id)
+        
+        return {
+            "referralCode": referral_code,
+            "referralLink": f"https://t.me/risk0_bot?start=ref_{referral_code}"
+        }
+    finally:
+        db.close()
