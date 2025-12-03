@@ -404,7 +404,7 @@ async def start_command(message: types.Message, state: FSMContext):
             bet_focus = getattr(user, 'bet_focus_mode', False)
             # Generate auth token for dashboard (ALL TIERS get this)
             import base64, json, time as time_module
-            dash_token = base64.b64encode(json.dumps({"telegram_id": str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}).encode()).decode()
+            dash_token = base64.b64encode(json.dumps({"telegramId": user.telegram_id, "username": user_tg.username or user_tg.first_name or str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}, separators=(',', ':')).encode()).decode()
             dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
             
             # UNIFIED MENU FOR ALL TIERS
@@ -2453,7 +2453,7 @@ async def callback_main_menu(callback: types.CallbackQuery):
             bet_focus = getattr(user, 'bet_focus_mode', False)
             # Generate auth token for dashboard (ALL TIERS get this)
             import base64, json, time as time_module
-            dash_token = base64.b64encode(json.dumps({"telegram_id": str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}).encode()).decode()
+            dash_token = base64.b64encode(json.dumps({"telegramId": user.telegram_id, "username": user_tg.username or user_tg.first_name or str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}, separators=(',', ':')).encode()).decode()
             dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
             
             # UNIFIED MENU FOR ALL TIERS
