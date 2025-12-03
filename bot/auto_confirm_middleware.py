@@ -23,6 +23,10 @@ class AutoconfirmMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
+        # DISABLED: Confirmation system now web-only
+        return await handler(event, data)
+        
+        # OLD CODE BELOW (disabled)
         # Resolve user_id from message or callback
         user_id = None
         if isinstance(event, Message):

@@ -38,10 +38,10 @@ class MiddleQuestionnaireMiddleware(BaseMiddleware):
         event: types.TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        """
-        Intercepte tous les messages/callbacks et vérifie si l'utilisateur a des middle bets en attente.
-        """
+        # DISABLED: Confirmation system now web-only
+        return await handler(event, data)
         
+        # OLD CODE BELOW (disabled)
         # Récupérer l'user_id
         user_id = None
         if isinstance(event, types.Message):

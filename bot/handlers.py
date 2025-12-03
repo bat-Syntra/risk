@@ -148,11 +148,9 @@ async def start_command(message: types.Message, state: FSMContext):
             # Just show normal menu (fall through)
             pass
     
-    # Check if user has pending confirmations
-    from bot.pending_confirmations import check_pending_confirmations_count
-    pending_count = check_pending_confirmations_count(message.from_user.id)
-    has_pending = pending_count > 0
-    logger.info(f"[MENU] User {message.from_user.id} - pending_count={pending_count}, has_pending={has_pending}")
+    # Confirmation system disabled on Telegram (web only)
+    pending_count = 0
+    has_pending = False
     
     user_tg = message.from_user
     db = SessionLocal()
@@ -2354,11 +2352,9 @@ async def callback_buy_premium(callback: types.CallbackQuery):
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: types.CallbackQuery):
     """Return to unified main menu"""
-    # Check if user has pending confirmations
-    from bot.pending_confirmations import check_pending_confirmations_count
-    pending_count = check_pending_confirmations_count(callback.from_user.id)
-    has_pending = pending_count > 0
-    logger.info(f"[MAIN_MENU CALLBACK] User {callback.from_user.id} - pending_count={pending_count}, has_pending={has_pending}")
+    # Confirmation system disabled on Telegram (web only)
+    pending_count = 0
+    has_pending = False
     
     # Don't call answer() here - BotMessageManager.send_or_edit() does it
     db = SessionLocal()
