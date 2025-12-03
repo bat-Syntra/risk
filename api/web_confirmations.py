@@ -90,11 +90,12 @@ async def get_pending_confirmations(telegram_id: int):
         ).all()
         
         # Filter to only "ready" bets
+        # TEMP: Include today's bets for testing (normally only yesterday or older)
         ready_bets = []
         for bet in pending_bets:
-            if bet.match_date and bet.match_date < today:
+            if bet.match_date and bet.match_date <= today:  # <= instead of <
                 ready_bets.append(bet)
-            elif bet.match_date is None and bet.bet_date and bet.bet_date < today:
+            elif bet.match_date is None and bet.bet_date and bet.bet_date <= today:  # <= instead of <
                 ready_bets.append(bet)
         
         confirmations = []
