@@ -283,7 +283,7 @@ async def start_command(message: types.Message, state: FSMContext):
         if user.is_admin:
             tier_label = "ALPHA"
         elif user.tier == TierLevel.PREMIUM and not user.subscription_end:
-            tier_label = "KING ALPHA"  # Lifetime = KING ALPHA (paid or free)
+            tier_label = "KING"  # Lifetime = KING
         else:
             # FREE users = BETA, PREMIUM = ALPHA
             tier_label = "BETA" if user.tier == TierLevel.FREE else "ALPHA"
@@ -293,11 +293,9 @@ async def start_command(message: types.Message, state: FSMContext):
             # Admin créateur = KING OF ALPHA (pas "KING ALPHA")
             if user.telegram_id == 8213628656:
                 days_left_line = (f"👑 Accès: <b>KING OF ALPHA</b>\n" if lang == 'fr' else f"👑 Access: <b>KING OF ALPHA</b>\n")
-            # Lifetime = KING ALPHA (show if free or not)
-            elif getattr(user, 'free_access', False):
-                days_left_line = (f"👑 Accès: <b>KING ALPHA</b> (FREE)\n" if lang == 'fr' else f"👑 Access: <b>KING ALPHA</b> (FREE)\n")
+            # Lifetime = KING
             else:
-                days_left_line = (f"👑 Accès: <b>KING ALPHA</b>\n" if lang == 'fr' else f"👑 Access: <b>KING ALPHA</b>\n")
+                days_left_line = (f"👑 Accès: <b>KING</b>\n" if lang == 'fr' else f"👑 Access: <b>KING</b>\n")
         elif user.tier == TierLevel.PREMIUM and user.subscription_end:
             # Temporary premium with expiry date
             days_left = user.days_until_expiry
@@ -2377,16 +2375,24 @@ async def callback_main_menu(callback: types.CallbackQuery):
             if lang == "fr" else
             "Risk0 Casino - Enjoy guaranteed bets!"
         )
-        # Tier label - BETA for FREE users, ALPHA for PREMIUM
+        # Tier label - BETA for FREE users, ALPHA for PREMIUM, KING for lifetime
         if user.tier == TierLevel.FREE:
             tier_label = "BETA"
         elif user.is_admin:
             tier_label = "ALPHA"
+        elif user.tier == TierLevel.PREMIUM and not user.subscription_end:
+            tier_label = "KING"  # Lifetime = KING
         else:
             tier_label = "ALPHA" if user.tier == TierLevel.PREMIUM else "BETA"
-        # Days left
+        # Days left / Access line
         days_left_line = ""
-        if user.tier != TierLevel.FREE and user.subscription_end:
+        if user.tier == TierLevel.PREMIUM and not user.subscription_end:
+            # Lifetime = KING
+            if user.telegram_id == 8213628656:
+                days_left_line = (f"👑 Accès: <b>KING OF ALPHA</b>\n" if lang == 'fr' else f"👑 Access: <b>KING OF ALPHA</b>\n")
+            else:
+                days_left_line = (f"👑 Accès: <b>KING</b>\n" if lang == 'fr' else f"👑 Access: <b>KING</b>\n")
+        elif user.tier != TierLevel.FREE and user.subscription_end:
             days_left = user.days_until_expiry
             days_left_line = (f"⏰ Expire dans: {days_left} jours\n" if lang == 'fr' else f"⏰ Expires in: {days_left} days\n")
         # Calls stats
