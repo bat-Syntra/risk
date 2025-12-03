@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, date
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
 from typing import Optional, List, Set
-from sqlalchemy import func, and_, extract
+from sqlalchemy import func, and_, extract, case
 from database import SessionLocal
 from models.user import User
 from models.drop_event import DropEvent
@@ -214,23 +214,55 @@ async def get_user(telegram_id: int):
         today_count = len(today_bets)
         today_profit = sum(b.expected_profit or 0 for b in today_bets)
         
-        # Use user table columns (synchronized with Telegram!) for ALL-TIME stats
-        # These are the source of truth maintained by the bot
-        total_bets = user.total_bets or 0
-        total_profit = user.total_profit or 0
+        # Calculate ALL-TIME stats from UserBet table (same as Telegram!)
+        # This ensures stats are always in sync
+        total_bets = db.query(func.count(UserBet.id)).filter(
+            UserBet.user_id == telegram_id
+        ).scalar() or 0
         
-        arb_profit = user.arbitrage_profit or 0
-        mid_profit = user.middle_profit or 0
-        ev_profit = user.good_ev_profit or 0
+        total_profit = db.query(
+            func.sum(case((UserBet.actual_profit != None, UserBet.actual_profit), else_=UserBet.expected_profit))
+        ).filter(
+            UserBet.user_id == telegram_id
+        ).scalar() or 0
         
-        arb_bets = user.arbitrage_bets or 0
-        mid_bets = user.middle_bets or 0
-        ev_bets = user.good_ev_bets or 0
+        # Calculate by bet type
+        arb_bets = db.query(func.count(UserBet.id)).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'arbitrage'
+        ).scalar() or 0
+        arb_profit = db.query(
+            func.sum(case((UserBet.actual_profit != None, UserBet.actual_profit), else_=UserBet.expected_profit))
+        ).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'arbitrage'
+        ).scalar() or 0
+        
+        mid_bets = db.query(func.count(UserBet.id)).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'middle'
+        ).scalar() or 0
+        mid_profit = db.query(
+            func.sum(case((UserBet.actual_profit != None, UserBet.actual_profit), else_=UserBet.expected_profit))
+        ).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'middle'
+        ).scalar() or 0
+        
+        ev_bets = db.query(func.count(UserBet.id)).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'good_ev'
+        ).scalar() or 0
+        ev_profit = db.query(
+            func.sum(case((UserBet.actual_profit != None, UserBet.actual_profit), else_=UserBet.expected_profit))
+        ).filter(
+            UserBet.user_id == telegram_id,
+            UserBet.bet_type == 'good_ev'
+        ).scalar() or 0
         
         # Calculate win rate
         win_rate = 0
         if total_bets > 0 and total_profit > 0:
-            # Simple approximation: if you have profit, most bets are wins
             win_rate = 100.0  # Arb trading is usually 100% win rate
         
         return {
