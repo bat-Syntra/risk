@@ -48,6 +48,61 @@ class LastArbCashh(StatesGroup):
     awaiting_amount = State()
 
 
+async def _show_subscribe_tiers(message: types.Message):
+    """Helper to show subscribe/tiers menu from deep link"""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+        if not user:
+            await message.answer("Please send /start first!")
+            return
+        lang = user.language or "en"
+        
+        if lang == "fr":
+            text = (
+                "💎 <b>PLANS DISPONIBLES</b>\n\n"
+                "🆓 <b>GRATUIT</b>\n"
+                "• 5 alertes par jour\n"
+                "• Arbitrages < 2.5%\n\n"
+                "🔥 <b>ALPHA - 200 CAD/mois</b>\n"
+                "• Alertes illimitées\n"
+                "• Tous les arbitrages\n"
+                "• Middle Bets + Good Odds\n"
+                "• Dashboard Web\n"
+                "• Support VIP\n\n"
+                "💰 Paiement crypto uniquement"
+            )
+            btn_text = "🔥 Acheter ALPHA"
+        else:
+            text = (
+                "💎 <b>AVAILABLE PLANS</b>\n\n"
+                "🆓 <b>FREE</b>\n"
+                "• 5 alerts per day\n"
+                "• Arbitrages < 2.5%\n\n"
+                "🔥 <b>ALPHA - 200 CAD/month</b>\n"
+                "• Unlimited alerts\n"
+                "• All arbitrages\n"
+                "• Middle Bets + Good Odds\n"
+                "• Web Dashboard\n"
+                "• VIP Support\n\n"
+                "💰 Crypto payment only"
+            )
+            btn_text = "🔥 Buy ALPHA"
+        
+        keyboard = [
+            [InlineKeyboardButton(text=btn_text, callback_data="buy_alpha")],
+            [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
+        ]
+        await BotMessageManager.send_or_edit(
+            event=message,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+            parse_mode=ParseMode.HTML,
+        )
+    finally:
+        db.close()
+
+
 @router.message(Command("start"))
 async def start_command(message: types.Message, state: FSMContext):
     """
@@ -58,6 +113,38 @@ async def start_command(message: types.Message, state: FSMContext):
         await message.delete()
     except Exception:
         pass
+    
+    # Handle deep link payloads (e.g., /start subscribe)
+    if message.text and len(message.text.split()) > 1:
+        payload = message.text.split()[1].strip().lower()
+        if payload == 'subscribe':
+            # Forward to subscribe_command (defined later in this file)
+            # We need to create user first if they don't exist, then call subscribe
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+                if not user:
+                    # Create user first
+                    user = User(
+                        telegram_id=message.from_user.id,
+                        username=message.from_user.username,
+                        first_name=message.from_user.first_name,
+                        last_name=message.from_user.last_name,
+                        language="en",
+                        tier=TierLevel.FREE,
+                        is_active=True
+                    )
+                    db.add(user)
+                    db.commit()
+            finally:
+                db.close()
+            # Now call subscribe_command (will be handled after function definition)
+            # Use message.answer to show tiers directly
+            await _show_subscribe_tiers(message)
+            return
+        elif payload == 'getstarted':
+            # Just show normal menu (fall through)
+            pass
     
     # Check if user has pending confirmations
     from bot.pending_confirmations import check_pending_confirmations_count
