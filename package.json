@@ -1,0 +1,14 @@
+{
+  "name": "risk0-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd risk0-web && npm run build",
+    "dev": "cd risk0-web && npm run dev",
+    "start": "cd risk0-web && npm run start",
+    "install-web": "cd risk0-web && npm install"
+  },
+  "workspaces": [
+    "risk0-web"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd risk0-web && npm run build",
+  "outputDirectory": "risk0-web/.next",
+  "installCommand": "cd risk0-web && npm install",
+  "devCommand": "cd risk0-web && npm run dev",
+  "framework": "nextjs"
+}
