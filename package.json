@@ -1,19 +1,15 @@
 {
-  "name": "risk0-monorepo",
-  "version": "1.0.0",
+  "name": "risk0-web-proxy",
+  "version": "1.0.0", 
   "private": true,
   "scripts": {
-    "build": "cd risk0-web && npm run build",
-    "dev": "cd risk0-web && npm run dev",
-    "start": "cd risk0-web && npm run start",
-    "install-web": "cd risk0-web && npm install"
+    "build": "npm --prefix risk0-web run build",
+    "dev": "npm --prefix risk0-web run dev",
+    "start": "npm --prefix risk0-web run start"
   },
   "dependencies": {
     "next": "^16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0"
-  },
-  "workspaces": [
-    "risk0-web"
-  ]
+  }
 }
