@@ -8,6 +8,11 @@
     "start": "cd risk0-web && npm run start",
     "install-web": "cd risk0-web && npm install"
   },
+  "dependencies": {
+    "next": "^16.0.7",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
   "workspaces": [
     "risk0-web"
   ]
