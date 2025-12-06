@@ -2441,7 +2441,7 @@ async def callback_subscribe(callback: types.CallbackQuery):
         if lang == "fr":
             text = (
                 "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 BETA (GRATUIT)\n"
+                "🧪 <b>BETA (GRATUIT)</b>\n"
                 "• 5 alertes par jour\n"
                 "• Arbitrages < 2.5%\n"
                 "• Alertes en temps réel\n\n"
@@ -2449,9 +2449,6 @@ async def callback_subscribe(callback: types.CallbackQuery):
                 "• Alertes illimitées\n"
                 "• Tous les arbitrages (≥0.5%)\n"
                 "• Middle Bets + Good Odds\n"
-                "• Parlays optimisés (Beta)\n"
-                "• Parlays CR (Risque Calculé)\n"
-                "• Moniteur de santé des books\n"
                 "• Filtres avancés\n"
                 "• Vérificateur de cotes auto\n"
                 "• Mode RISKED\n"
@@ -2465,7 +2462,7 @@ async def callback_subscribe(callback: types.CallbackQuery):
         else:
             text = (
                 "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 BETA (FREE)\n"
+                "🧪 <b>BETA (FREE)</b>\n"
                 "• 5 alerts per day\n"
                 "• Arbitrages < 2.5%\n"
                 "• Real-time alerts\n\n"
@@ -2473,9 +2470,6 @@ async def callback_subscribe(callback: types.CallbackQuery):
                 "• Unlimited alerts\n"
                 "• All arbitrages (≥0.5%)\n"
                 "• Middle Bets + Good Odds\n"
-                "• Optimized Parlays (Beta)\n"
-                "• CR Parlays (Calculated Risk)\n"
-                "• Book Health Monitor\n"
                 "• Advanced filters\n"
                 "• Auto odds checker\n"
                 "• RISKED mode\n"
@@ -2488,7 +2482,7 @@ async def callback_subscribe(callback: types.CallbackQuery):
             )
         
         keyboard = [
-            [InlineKeyboardButton(text="🔥 ALPHA" if lang == "en" else "🔥 ALPHA", callback_data="buy_premium")],
+            [InlineKeyboardButton(text="🔥 Buy ALPHA" if lang == "en" else "🔥 Acheter ALPHA", callback_data="buy_premium")],
             [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
         ]
         await BotMessageManager.send_or_edit(
