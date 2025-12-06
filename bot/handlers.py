@@ -485,39 +485,16 @@ async def start_command(message: types.Message, state: FSMContext):
                 f"{stats_line}"
                 f"{help_line}"
             )
-            # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
+            # Check bet_focus_mode
             bet_focus = getattr(user, 'bet_focus_mode', False)
-            # Generate auth token for dashboard (ALL TIERS get this)
+            
+            # Generate auth token for dashboard
             import base64, json, time as time_module
             dash_token = base64.b64encode(json.dumps({"telegramId": user.telegram_id, "username": user_tg.username or user_tg.first_name or str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}, separators=(',', ':')).encode()).decode()
             dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
             
-            # MENU ADAPTED BY TIER
-            keyboard = [
-                [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-            ]
-            
-            # Add Last Calls and Parlays only for PREMIUM users
-            if user.tier != TierLevel.FREE:
-                keyboard.extend([
-                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                ])
-            
-            # Settings for all users
-            keyboard.append([InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")])
-            # Add Casino/Guide/Referral if bet_focus_mode is OFF
-            if not bet_focus:
-                keyboard.extend([
-                [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
-                [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
-                [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                ])
-                # Add upgrade button for FREE users AFTER referral
-                if user.tier == TierLevel.FREE:
-                    upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
-                    keyboard.append([InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
+            # Build menu keyboard
+            keyboard = await build_menu_keyboard(user, lang, dash_url, bet_focus)
             # Admin panel button (env or DB admin)
             try:
                 env_admins = [int(x.strip()) for x in (os.getenv("ADMIN_IDS", "").split(",") if os.getenv("ADMIN_IDS") else []) if x.strip()]
@@ -2419,6 +2396,38 @@ async def callback_buy_premium(callback: types.CallbackQuery):
         db.close()
 
 
+async def build_menu_keyboard(user, lang, dash_url=None, bet_focus=False):
+    """Build unified menu keyboard based on user tier"""
+    keyboard = [
+        [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)] if dash_url else None,
+        [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
+    ]
+    keyboard = [k for k in keyboard if k is not None]  # Remove None entries
+
+    # Add Last Calls and Parlays only for PREMIUM users
+    if user.tier != TierLevel.FREE:
+        keyboard.extend([
+            [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+            [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+        ])
+
+    # Settings for all users
+    keyboard.append([InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")])
+
+    # Add Casino/Guide/Referral if bet_focus_mode is OFF
+    if not bet_focus:
+        keyboard.extend([
+            [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
+            [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
+            [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
+        ])
+        # Add upgrade button for FREE users after referral
+        if user.tier == TierLevel.FREE:
+            upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
+            keyboard.append([InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
+
+    return keyboard
+
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: types.CallbackQuery):
     """Return to unified main menu"""
@@ -2610,28 +2619,16 @@ async def callback_main_menu(callback: types.CallbackQuery):
                 f"{stats_line2}"
                 f"{help_line2}"
             )
-            # Build keyboard: check bet_focus_mode to optionally hide Casino/Guide/Referral
+            # Check bet_focus_mode
             bet_focus = getattr(user, 'bet_focus_mode', False)
-            # Generate auth token for dashboard (ALL TIERS get this)
+            
+            # Generate auth token for dashboard
             import base64, json, time as time_module
             dash_token = base64.b64encode(json.dumps({"telegramId": user.telegram_id, "username": user_tg.username or user_tg.first_name or str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}, separators=(',', ':')).encode()).decode()
             dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
             
-            # UNIFIED MENU FOR ALL TIERS
-            keyboard = [
-                [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
-                [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
-            ]
-            # Add Casino/Guide/Referral if bet_focus_mode is OFF
-            if not bet_focus:
-                keyboard.extend([
-                [InlineKeyboardButton(text=("🎰 Casinos" if lang == "fr" else "🎰 Casinos"), callback_data="show_casinos")],
-                [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
-                [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
-                ])
+            # Build menu keyboard
+            keyboard = await build_menu_keyboard(user, lang, dash_url, bet_focus)
             # Admin button if user is admin (env or DB or role)
             # Import admin system helper
             from bot.admin_approval_system import is_any_admin
