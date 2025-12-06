@@ -550,7 +550,7 @@ async def support_command(message: types.Message):
     text = (
         "🆘 <b>SUPPORT</b>\n\n"
         "📖 New? Read the guide: /guide (10-15 min)\n\n"
-        "👤 Contact: @ZEROR1SK\n"
+        "👤 Contact: @Z3RORISK\n"
         "🕒 Response: <b>Fast (Same day)</b>\n\n"
         "Include: your issue and screenshots if possible."
     )
@@ -696,6 +696,20 @@ async def callback_onboard_lang(callback: types.CallbackQuery, state: FSMContext
     except Exception:
         pass
     
+    # Show dashboard announcement first
+    dash_text = (
+        "🚀 <b>RISK0 DASHBOARD IS ALIVE!</b> 🎉\n\n"
+        "All your tools in one place:\n"
+        "• Live Arbitrage Alerts\n"
+        "• Bet Tracking & Stats\n"
+        "• Portfolio Analytics\n"
+        "• Pro Calculator\n"
+        "• Bankroll Management\n\n"
+        "🌐 Access now: https://smartrisk0.xyz\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    await callback.message.answer(dash_text, parse_mode=ParseMode.HTML)
+
     # Show legal terms and conditions
     await state.set_state(OnboardingStates.awaiting_terms_acceptance)
     
