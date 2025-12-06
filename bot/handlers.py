@@ -1520,24 +1520,21 @@ async def callback_show_tiers(callback: types.CallbackQuery):
                 "💎 <b>BETA vs ALPHA</b>\n\n"
                 "🧪 <b>BETA (GRATUIT)</b>\n"
                 "• 5 alertes par jour\n"
-                "• Arbitrages &lt; 2.5%\n"
+                "• Arbitrages < 2.5%\n"
                 "• Alertes en temps réel\n\n"
                 f"🔥 <b>ALPHA - {price_display}</b>\n"
                 "• Alertes illimitées\n"
                 "• Tous les arbitrages (≥0.5%)\n"
                 "• Middle Bets + Good Odds\n"
-                "• Parlays optimisés (Beta)\n"
-                "• Book Health Monitor\n"
                 "• Filtres avancés\n"
                 "• Vérificateur de cotes auto\n"
                 "• Mode RISKED\n"
                 "• Calculateur personnalisé\n"
                 "• Stats avancées\n"
                 "• Support VIP\n"
-                "• 20% referral à vie\n"
-                "\n"
-                "💰 <b>Paiement crypto uniquement</b>\n"
-                "🎁 <b>Programme Referral:</b> Gagne 20% de commission récurrente!"
+                "• 20% de parrainage à vie\n\n"
+                "💰 Paiement en crypto uniquement\n"
+                "🎁 Programme de parrainage: Gagnez 20% de commission récurrente!\n"
             )
         else:
             tier_message = (
@@ -2422,77 +2419,10 @@ async def build_menu_keyboard(user, lang, dash_url=None, bet_focus=False):
         ])
         # Add upgrade button for FREE users after referral
         if user.tier == TierLevel.FREE:
-            keyboard.append([InlineKeyboardButton(text="🔥 ALPHA", callback_data="subscribe")])
+            keyboard.append([InlineKeyboardButton(text="🔥 ALPHA", callback_data="show_tiers")])
 
     return keyboard
 
-@router.callback_query(F.data == "subscribe")
-async def callback_subscribe(callback: types.CallbackQuery):
-    """Show subscription tiers and payment options"""
-    await callback.answer()
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
-        if not user:
-            await callback.message.answer("Please send /start first!")
-            return
-        lang = user.language or "en"
-        
-        if lang == "fr":
-            text = (
-                "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 <b>BETA (GRATUIT)</b>\n"
-                "• 5 alertes par jour\n"
-                "• Arbitrages < 2.5%\n"
-                "• Alertes en temps réel\n\n"
-                "🔥 <b>ALPHA - 200 CAD/mois</b>\n"
-                "• Alertes illimitées\n"
-                "• Tous les arbitrages (≥0.5%)\n"
-                "• Middle Bets + Good Odds\n"
-                "• Filtres avancés\n"
-                "• Vérificateur de cotes auto\n"
-                "• Mode RISKED\n"
-                "• Calculateur personnalisé\n"
-                "• Stats avancées\n"
-                "• Support VIP\n"
-                "• 20% de parrainage à vie\n\n"
-                "💰 Paiement en crypto uniquement\n"
-                "🎁 Programme de parrainage: Gagnez 20% de commission récurrente!\n"
-            )
-        else:
-            text = (
-                "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 <b>BETA (FREE)</b>\n"
-                "• 5 alerts per day\n"
-                "• Arbitrages < 2.5%\n"
-                "• Real-time alerts\n\n"
-                "🔥 <b>ALPHA - 200 CAD/month</b>\n"
-                "• Unlimited alerts\n"
-                "• All arbitrages (≥0.5%)\n"
-                "• Middle Bets + Good Odds\n"
-                "• Advanced filters\n"
-                "• Auto odds checker\n"
-                "• RISKED mode\n"
-                "• Custom calculator\n"
-                "• Advanced stats\n"
-                "• VIP support\n"
-                "• 20% referral for life\n\n"
-                "💰 Crypto payment only\n"
-                "🎁 Referral Program: Earn 20% recurring commission!\n"
-            )
-        
-        keyboard = [
-            [InlineKeyboardButton(text="🔥 Buy ALPHA" if lang == "en" else "🔥 Acheter ALPHA", callback_data="buy_premium")],
-            [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
-        ]
-        await BotMessageManager.send_or_edit(
-            event=callback,
-            text=text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
-            parse_mode=ParseMode.HTML,
-        )
-    finally:
-        db.close()
 
 @router.callback_query(F.data == "pay_usdt")
 async def callback_pay_usdt(callback: types.CallbackQuery):
