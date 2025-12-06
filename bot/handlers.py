@@ -2422,13 +2422,12 @@ async def build_menu_keyboard(user, lang, dash_url=None, bet_focus=False):
         ])
         # Add upgrade button for FREE users after referral
         if user.tier == TierLevel.FREE:
-            upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
-            keyboard.append([InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
+            keyboard.append([InlineKeyboardButton(text="🔥 ALPHA", callback_data="subscribe")])
 
     return keyboard
 
-@router.callback_query(F.data == "buy_alpha")
-async def callback_buy_alpha(callback: types.CallbackQuery):
+@router.callback_query(F.data == "subscribe")
+async def callback_subscribe(callback: types.CallbackQuery):
     """Show subscription tiers and payment options"""
     await callback.answer()
     db = SessionLocal()
@@ -2440,57 +2439,10 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
         lang = user.language or "en"
         
         if lang == "fr":
-            text = (
-                "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 BETA (GRATUIT)\n"
-                "• 5 alertes par jour\n"
-                "• Arbitrages < 2.5%\n"
-                "• Alertes en temps réel\n\n"
-                "🔥 <b>ALPHA - 200 CAD/mois</b>\n"
-                "• Alertes illimitées\n"
-                "• Tous les arbitrages (≥0.5%)\n"
-                "• Middle Bets + Good Odds\n"
-                "• Parlays optimisés (Beta)\n"
-                "• Parlays CR (Risque Calculé)\n"
-                "• Moniteur de santé des books\n"
-                "• Filtres avancés\n"
-                "• Vérificateur de cotes auto\n"
-                "• Mode RISKED\n"
-                "• Calculateur personnalisé\n"
-                "• Stats avancées\n"
-                "• Support VIP\n"
-                "• 20% de parrainage à vie\n\n"
-                "💰 <b>Paiement en crypto uniquement</b>\n"
-                "🎁 Programme de parrainage: <b>20% de commission récurrente!</b>\n"
-            )
-            btn_text = "🔥 Acheter ALPHA"
+            text = "🔥 <b>ALPHA - 200 CAD/mois</b>\n\n"
         else:
-            text = (
-                "💎 <b>BETA vs ALPHA</b>\n\n"
-                "🧪 BETA (FREE)\n"
-                "• 5 alerts per day\n"
-                "• Arbitrages < 2.5%\n"
-                "• Real-time alerts\n\n"
-                "🔥 <b>ALPHA - 200 CAD/month</b>\n"
-                "• Unlimited alerts\n"
-                "• All arbitrages (≥0.5%)\n"
-                "• Middle Bets + Good Odds\n"
-                "• Optimized Parlays (Beta)\n"
-                "• CR Parlays (Calculated Risk)\n"
-                "• Book Health Monitor\n"
-                "• Advanced filters\n"
-                "• Auto odds checker\n"
-                "• RISKED mode\n"
-                "• Custom calculator\n"
-                "• Advanced stats\n"
-                "• VIP support\n"
-                "• 20% referral for life\n\n"
-                "💰 <b>Crypto payment only</b>\n"
-                "🎁 Referral Program: <b>20% recurring commission!</b>\n"
-            )
-            btn_text = "🔥 Buy ALPHA"
+            text = "🔥 <b>ALPHA - 200 CAD/month</b>\n\n"
         
-        # Payment buttons
         keyboard = [
             [InlineKeyboardButton(text="💳 USDT (TRC20)", callback_data="pay_usdt")],
             [InlineKeyboardButton(text="💳 BTC", callback_data="pay_btc")],
