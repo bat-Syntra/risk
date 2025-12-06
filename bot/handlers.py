@@ -2491,8 +2491,10 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
             )
             btn_text = "🔥 Buy ALPHA"
         
+        # Payment buttons
         keyboard = [
-            [InlineKeyboardButton(text=btn_text, callback_data="buy_premium")],
+            [InlineKeyboardButton(text="💳 USDT (TRC20)", callback_data="pay_usdt")],
+            [InlineKeyboardButton(text="💳 BTC", callback_data="pay_btc")],
             [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
         ]
         await BotMessageManager.send_or_edit(
@@ -2503,6 +2505,116 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
         )
     finally:
         db.close()
+
+@router.callback_query(F.data == "pay_usdt")
+async def callback_pay_usdt(callback: types.CallbackQuery):
+    """Show USDT payment info"""
+    await callback.answer()
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
+        if not user:
+            await callback.message.answer("Please send /start first!")
+            return
+        lang = user.language or "en"
+        
+        if lang == "fr":
+            text = (
+                "💳 <b>PAIEMENT USDT (TRC20)</b>\n\n"
+                "💵 Montant: 200 CAD\n"
+                "💸 Adresse USDT (TRC20):\n"
+                "<code>TKB1NuqK6yXBhXrywXjNiHJH2UWFNg8fFe</code>\n\n"
+                "❗️ IMPORTANT:\n"
+                "1. Envoyez le montant exact\n"
+                "2. Utilisez uniquement le réseau TRC20\n"
+                "3. Envoyez une capture d'écran à @Z3RORISK\n"
+            )
+            btn_text = "📲 Copier l'adresse"
+        else:
+            text = (
+                "💳 <b>USDT (TRC20) PAYMENT</b>\n\n"
+                "💵 Amount: 200 CAD\n"
+                "💸 USDT (TRC20) Address:\n"
+                "<code>TKB1NuqK6yXBhXrywXjNiHJH2UWFNg8fFe</code>\n\n"
+                "❗️ IMPORTANT:\n"
+                "1. Send exact amount\n"
+                "2. Use TRC20 network only\n"
+                "3. Send screenshot to @Z3RORISK\n"
+            )
+            btn_text = "📲 Copy Address"
+        
+        keyboard = [
+            [InlineKeyboardButton(text=btn_text, callback_data="copy_usdt_address")],
+            [InlineKeyboardButton(text=("◀️ Retour" if lang == 'fr' else "◀️ Back"), callback_data="buy_alpha")],
+        ]
+        await BotMessageManager.send_or_edit(
+            event=callback,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+            parse_mode=ParseMode.HTML,
+        )
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "pay_btc")
+async def callback_pay_btc(callback: types.CallbackQuery):
+    """Show BTC payment info"""
+    await callback.answer()
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
+        if not user:
+            await callback.message.answer("Please send /start first!")
+            return
+        lang = user.language or "en"
+        
+        if lang == "fr":
+            text = (
+                "💳 <b>PAIEMENT BTC</b>\n\n"
+                "💵 Montant: 200 CAD\n"
+                "💸 Adresse BTC:\n"
+                "<code>bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</code>\n\n"
+                "❗️ IMPORTANT:\n"
+                "1. Envoyez le montant exact\n"
+                "2. Attendez 1 confirmation\n"
+                "3. Envoyez une capture d'écran à @Z3RORISK\n"
+            )
+            btn_text = "📲 Copier l'adresse"
+        else:
+            text = (
+                "💳 <b>BTC PAYMENT</b>\n\n"
+                "💵 Amount: 200 CAD\n"
+                "💸 BTC Address:\n"
+                "<code>bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</code>\n\n"
+                "❗️ IMPORTANT:\n"
+                "1. Send exact amount\n"
+                "2. Wait for 1 confirmation\n"
+                "3. Send screenshot to @Z3RORISK\n"
+            )
+            btn_text = "📲 Copy Address"
+        
+        keyboard = [
+            [InlineKeyboardButton(text=btn_text, callback_data="copy_btc_address")],
+            [InlineKeyboardButton(text=("◀️ Retour" if lang == 'fr' else "◀️ Back"), callback_data="buy_alpha")],
+        ]
+        await BotMessageManager.send_or_edit(
+            event=callback,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+            parse_mode=ParseMode.HTML,
+        )
+    finally:
+        db.close()
+
+@router.callback_query(F.data == "copy_usdt_address")
+async def callback_copy_usdt_address(callback: types.CallbackQuery):
+    """Copy USDT address to clipboard"""
+    await callback.answer("USDT address copied!", show_alert=True)
+
+@router.callback_query(F.data == "copy_btc_address")
+async def callback_copy_btc_address(callback: types.CallbackQuery):
+    """Copy BTC address to clipboard"""
+    await callback.answer("BTC address copied!", show_alert=True)
 
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: types.CallbackQuery):
