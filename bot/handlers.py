@@ -815,7 +815,42 @@ async def callback_accept_terms(callback: types.CallbackQuery, state: FSMContext
         "━━━━━━━━━━━━━━━━━━━\n\n"
     )
     await callback.message.answer(dash_text, parse_mode=ParseMode.HTML)
-    
+
+    # Get user language
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
+        lang = user.language if user else "en"
+    finally:
+        db.close()
+
+    # Show welcome message
+    if lang == "fr":
+        welcome_text = (
+            "👋 <b>BIENVENUE SUR RISK0!</b>\n\n"
+            "💰 Prêt à commencer à faire des profits garantis?\n\n"
+            "📊 Voici quoi faire:\n"
+            "1. Lis le /guide d'abord\n"
+            "2. Configure ta bankroll dans /settings\n"
+            "3. Attends les alertes d'arbitrage\n"
+            "4. Suis tes profits\n\n"
+            "🔔 <b>Active les notifications pour ne rater aucun call!</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+    else:
+        welcome_text = (
+            "👋 <b>WELCOME TO RISK0!</b>\n\n"
+            "💰 Ready to start making guaranteed profits?\n\n"
+            "📊 Here's what to do:\n"
+            "1. Read the /guide first\n"
+            "2. Set up your bankroll in /settings\n"
+            "3. Wait for arbitrage alerts\n"
+            "4. Track your profits\n\n"
+            "🔔 <b>Turn on notifications to never miss a call!</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+    await callback.message.answer(welcome_text, parse_mode=ParseMode.HTML)
+
     # Mark user as having accepted terms (optional: track in DB)
     db = SessionLocal()
     try:
