@@ -492,18 +492,21 @@ async def start_command(message: types.Message, state: FSMContext):
             dash_token = base64.b64encode(json.dumps({"telegramId": user.telegram_id, "username": user_tg.username or user_tg.first_name or str(user.telegram_id), "tier": user.tier.value if hasattr(user.tier, 'value') else str(user.tier), "ts": int(time_module.time())}, separators=(',', ':')).encode()).decode()
             dash_url = f"https://smartrisk0.xyz/dash?token={dash_token}"
             
-            # UNIFIED MENU FOR ALL TIERS
+            # MENU ADAPTED BY TIER
             keyboard = [
                 [InlineKeyboardButton(text="🚀 RISK0 Dashboard", url=dash_url)],
                 [InlineKeyboardButton(text=("📊 Mes Stats" if lang == "fr" else "📊 My Stats"), callback_data="my_stats")],
-                [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
-                [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
-                [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
             ]
-            # Add upgrade button for FREE users
-            if user.tier == TierLevel.FREE:
-                upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
-                keyboard.insert(1, [InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
+            
+            # Add Last Calls and Parlays only for PREMIUM users
+            if user.tier != TierLevel.FREE:
+                keyboard.extend([
+                    [InlineKeyboardButton(text=("🕒 Derniers Calls" if lang == "fr" else "🕒 Last Calls"), callback_data="last_calls")],
+                    [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
+                ])
+            
+            # Settings for all users
+            keyboard.append([InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")])
             # Add Casino/Guide/Referral if bet_focus_mode is OFF
             if not bet_focus:
                 keyboard.extend([
@@ -511,6 +514,10 @@ async def start_command(message: types.Message, state: FSMContext):
                 [InlineKeyboardButton(text=("📖 Guide" if lang == "fr" else "📖 Guide"), callback_data="learn_guide_pro")],
                 [InlineKeyboardButton(text=("🎁 Parrainage" if lang == "fr" else "🎁 Referral"), callback_data="show_referral")],
                 ])
+                # Add upgrade button for FREE users AFTER referral
+                if user.tier == TierLevel.FREE:
+                    upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
+                    keyboard.append([InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
             # Admin panel button (env or DB admin)
             try:
                 env_admins = [int(x.strip()) for x in (os.getenv("ADMIN_IDS", "").split(",") if os.getenv("ADMIN_IDS") else []) if x.strip()]
