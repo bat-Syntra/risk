@@ -805,6 +805,20 @@ async def callback_accept_terms(callback: types.CallbackQuery, state: FSMContext
     """User accepted terms - go to main menu"""
     await callback.answer()
     await state.clear()
+
+    # Show dashboard announcement
+    dash_text = (
+        "🚀 <b>RISK0 DASHBOARD IS ALIVE!</b> 🎉\n\n"
+        "All your tools in one place:\n"
+        "• Live Arbitrage Alerts\n"
+        "• Bet Tracking & Stats\n"
+        "• Portfolio Analytics\n"
+        "• Pro Calculator\n"
+        "• Bankroll Management\n\n"
+        "🌐 Access now: https://smartrisk0.xyz\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    await callback.message.answer(dash_text, parse_mode=ParseMode.HTML)
     
     # Mark user as having accepted terms (optional: track in DB)
     db = SessionLocal()
