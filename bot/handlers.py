@@ -2428,6 +2428,60 @@ async def build_menu_keyboard(user, lang, dash_url=None, bet_focus=False):
 
     return keyboard
 
+@router.callback_query(F.data == "buy_alpha")
+async def callback_buy_alpha(callback: types.CallbackQuery):
+    """Show subscription tiers and payment options"""
+    await callback.answer()
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
+        if not user:
+            await callback.message.answer("Please send /start first!")
+            return
+        lang = user.language or "en"
+        
+        if lang == "fr":
+            text = (
+                "🔥 <b>PASSER À ALPHA</b>\n\n"
+                "💰 <b>AVANTAGES:</b>\n"
+                "• Alertes illimitées\n"
+                "• Tous les arbitrages\n"
+                "• Middle Bets + Good Odds\n"
+                "• Dashboard Pro\n"
+                "• Support VIP\n\n"
+                "💵 <b>Prix:</b> $200/mois\n"
+                "💳 Paiement en crypto uniquement\n\n"
+                "🔔 <b>Prêt à commencer?</b>\n"
+            )
+            btn_text = "🔥 Acheter ALPHA"
+        else:
+            text = (
+                "🔥 <b>UPGRADE TO ALPHA</b>\n\n"
+                "💰 <b>BENEFITS:</b>\n"
+                "• Unlimited alerts\n"
+                "• All arbitrages\n"
+                "• Middle Bets + Good Odds\n"
+                "• Pro Dashboard\n"
+                "• VIP Support\n\n"
+                "💵 <b>Price:</b> $200/month\n"
+                "💳 Crypto payment only\n\n"
+                "🔔 <b>Ready to start?</b>\n"
+            )
+            btn_text = "🔥 Buy ALPHA"
+        
+        keyboard = [
+            [InlineKeyboardButton(text=btn_text, callback_data="buy_premium")],
+            [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
+        ]
+        await BotMessageManager.send_or_edit(
+            event=callback,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+            parse_mode=ParseMode.HTML,
+        )
+    finally:
+        db.close()
+
 @router.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: types.CallbackQuery):
     """Return to unified main menu"""
