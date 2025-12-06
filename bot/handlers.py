@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 from database import SessionLocal
 from models.user import User, TierLevel
-from models.bet import UserBet
-from models.bet import DailyStats, UserBet
+from models.bet import UserBet, DailyStats
 from core.tiers import TierManager, TierLevel as CoreTierLevel
 from core.referrals import ReferralManager
 from core.calculator import ArbitrageCalculator
