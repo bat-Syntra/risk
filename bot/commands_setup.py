@@ -25,18 +25,10 @@ def get_commands(lang: str = "fr") -> List[BotCommand]:
     if lang == "en":
         return [
             BotCommand(command="menu", description="Menu"),
-            BotCommand(command="confirmations", description="Pending confirmations"),
-            BotCommand(command="parlay_settings", description="Parlay preferences"),
-            BotCommand(command="parlays", description="View available parlays"),
-            BotCommand(command="report_odds", description="Report odds change"),
         ]
     # default FR
     return [
         BotCommand(command="menu", description="Menu"),
-        BotCommand(command="confirmations", description="Confirmations en attente"),
-        BotCommand(command="parlay_settings", description="Préférences parlays"),
-        BotCommand(command="parlays", description="Voir parlays disponibles"),
-        BotCommand(command="report_odds", description="Signaler changement cotes"),
     ]
 
 

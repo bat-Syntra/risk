@@ -500,6 +500,10 @@ async def start_command(message: types.Message, state: FSMContext):
                 [InlineKeyboardButton(text=("🎲 Parlays" if lang == "fr" else "🎲 Parlays"), callback_data="parlays_info")],
                 [InlineKeyboardButton(text=("⚙️ Paramètres" if lang == "fr" else "⚙️ Settings"), callback_data="settings")],
             ]
+            # Add upgrade button for FREE users
+            if user.tier == TierLevel.FREE:
+                upgrade_text = "🔥 Upgrade to ALPHA" if lang == "en" else "🔥 Passer à ALPHA"
+                keyboard.insert(1, [InlineKeyboardButton(text=upgrade_text, callback_data="buy_alpha")])
             # Add Casino/Guide/Referral if bet_focus_mode is OFF
             if not bet_focus:
                 keyboard.extend([
