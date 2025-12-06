@@ -2441,8 +2441,8 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
         
         if lang == "fr":
             text = (
-                "<b>💎 BETA vs ALPHA</b>\n\n"
-                "🧪 <b>BETA (GRATUIT)</b>\n"
+                "💎 <b>BETA vs ALPHA</b>\n\n"
+                "🧪 BETA (GRATUIT)\n"
                 "• 5 alertes par jour\n"
                 "• Arbitrages < 2.5%\n"
                 "• Alertes en temps réel\n\n"
@@ -2460,14 +2460,14 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
                 "• Stats avancées\n"
                 "• Support VIP\n"
                 "• 20% de parrainage à vie\n\n"
-                "<b>💰 Paiement en crypto uniquement</b>\n"
-                "🎁 Programme de parrainage: <b>Gagnez 20% de commission récurrente!</b>\n"
+                "💰 <b>Paiement en crypto uniquement</b>\n"
+                "🎁 Programme de parrainage: <b>20% de commission récurrente!</b>\n"
             )
             btn_text = "🔥 Acheter ALPHA"
         else:
             text = (
-                "<b>💎 BETA vs ALPHA</b>\n\n"
-                "🧪 <b>BETA (FREE)</b>\n"
+                "💎 <b>BETA vs ALPHA</b>\n\n"
+                "🧪 BETA (FREE)\n"
                 "• 5 alerts per day\n"
                 "• Arbitrages < 2.5%\n"
                 "• Real-time alerts\n\n"
@@ -2485,8 +2485,8 @@ async def callback_buy_alpha(callback: types.CallbackQuery):
                 "• Advanced stats\n"
                 "• VIP support\n"
                 "• 20% referral for life\n\n"
-                "<b>💰 Crypto payment only</b>\n"
-                "🎁 Referral Program: <b>Earn 20% recurring commission!</b>\n"
+                "💰 <b>Crypto payment only</b>\n"
+                "🎁 Referral Program: <b>20% recurring commission!</b>\n"
             )
             btn_text = "🔥 Buy ALPHA"
         
