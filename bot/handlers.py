@@ -2439,13 +2439,56 @@ async def callback_subscribe(callback: types.CallbackQuery):
         lang = user.language or "en"
         
         if lang == "fr":
-            text = "🔥 <b>ALPHA - 200 CAD/mois</b>\n\n"
+            text = (
+                "💎 <b>BETA vs ALPHA</b>\n\n"
+                "🧪 BETA (GRATUIT)\n"
+                "• 5 alertes par jour\n"
+                "• Arbitrages < 2.5%\n"
+                "• Alertes en temps réel\n\n"
+                "🔥 <b>ALPHA - 200 CAD/mois</b>\n"
+                "• Alertes illimitées\n"
+                "• Tous les arbitrages (≥0.5%)\n"
+                "• Middle Bets + Good Odds\n"
+                "• Parlays optimisés (Beta)\n"
+                "• Parlays CR (Risque Calculé)\n"
+                "• Moniteur de santé des books\n"
+                "• Filtres avancés\n"
+                "• Vérificateur de cotes auto\n"
+                "• Mode RISKED\n"
+                "• Calculateur personnalisé\n"
+                "• Stats avancées\n"
+                "• Support VIP\n"
+                "• 20% de parrainage à vie\n\n"
+                "💰 Paiement en crypto uniquement\n"
+                "🎁 Programme de parrainage: Gagnez 20% de commission récurrente!\n"
+            )
         else:
-            text = "🔥 <b>ALPHA - 200 CAD/month</b>\n\n"
+            text = (
+                "💎 <b>BETA vs ALPHA</b>\n\n"
+                "🧪 BETA (FREE)\n"
+                "• 5 alerts per day\n"
+                "• Arbitrages < 2.5%\n"
+                "• Real-time alerts\n\n"
+                "🔥 <b>ALPHA - 200 CAD/month</b>\n"
+                "• Unlimited alerts\n"
+                "• All arbitrages (≥0.5%)\n"
+                "• Middle Bets + Good Odds\n"
+                "• Optimized Parlays (Beta)\n"
+                "• CR Parlays (Calculated Risk)\n"
+                "• Book Health Monitor\n"
+                "• Advanced filters\n"
+                "• Auto odds checker\n"
+                "• RISKED mode\n"
+                "• Custom calculator\n"
+                "• Advanced stats\n"
+                "• VIP support\n"
+                "• 20% referral for life\n\n"
+                "💰 Crypto payment only\n"
+                "🎁 Referral Program: Earn 20% recurring commission!\n"
+            )
         
         keyboard = [
-            [InlineKeyboardButton(text="💳 USDT (TRC20)", callback_data="pay_usdt")],
-            [InlineKeyboardButton(text="💳 BTC", callback_data="pay_btc")],
+            [InlineKeyboardButton(text="🔥 ALPHA" if lang == "en" else "🔥 ALPHA", callback_data="buy_premium")],
             [InlineKeyboardButton(text=("◀️ Menu" if lang == 'fr' else "◀️ Menu"), callback_data="main_menu")],
         ]
         await BotMessageManager.send_or_edit(
