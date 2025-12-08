@@ -632,14 +632,16 @@ async def process_onboarding_referral(message: types.Message, state: FSMContext)
                         ref_text = (
                             "🎁 <b>NOUVEAU REFERRAL</b>\n\n"
                             f"{mention} vient d'utiliser votre lien de parrainage et a rejoint le bot.\n\n"
-                            "Vous gagnerez 20% quand il/elle passe PREMIUM.\n\n"
+                            "Vous gagnerez 10-40% quand il/elle passe PREMIUM.\n\n"
+                            "10% base → 12.5% Alpha → 15% (5 clients) → 25% (10) → 30% (20) → 40% (30+)\n\n"
                             "📊 /mystats"
                         )
                     else:
                         ref_text = (
                             "🎁 <b>NEW REFERRAL</b>\n\n"
                             f"{mention} just used your referral link and joined the bot.\n\n"
-                            "You’ll earn 20% when they go PREMIUM.\n\n"
+                            "You'll earn 10-40% when they go PREMIUM.\n\n"
+                            "10% base → 12.5% Alpha → 15% (5 clients) → 25% (10) → 30% (20) → 40% (30+)\n\n"
                             "📊 /mystats"
                         )
                     await message.bot.send_message(referrer.telegram_id, ref_text, parse_mode=ParseMode.HTML)
@@ -1280,7 +1282,7 @@ async def referral_command(message: types.Message):
         except Exception:
             is_override = False
         tiers_info = [
-            (3, 0.25), (7, 0.30), (12, 0.40)
+            (5, 0.15), (10, 0.25), (20, 0.30), (30, 0.40)
         ]
         next_tier_text = ""
         for thr, rate in tiers_info:
@@ -1613,29 +1615,26 @@ async def callback_show_referral(callback: types.CallbackQuery):
         is_free_user = user.tier == TierLevel.FREE
         lang = user.language or "en"
         if is_free_user:
-            # FREE: 8% → 20% (after 1 direct, permanent)
-            if active_directs >= 1:
-                next_tier_text = "✅ 20% unlocked forever!" if lang == 'en' else "✅ 20% débloqué à vie!"
-            else:
-                if lang == 'fr':
-                    next_tier_text = "➡️ Upgrade ALPHA: 20% à vie + bonus jusqu'à 40%!"
-                else:
-                    next_tier_text = "➡️ Upgrade ALPHA: 20% forever + bonus up to 40%!"
-        else:
-            # ALPHA: 20% permanent + bonuses with directs
+            # FREE: 10% base
             if lang == 'fr':
-                next_tier_text = "🎉 Alpha = 20% à VIE!"
+                next_tier_text = "➡️ Upgrade ALPHA: 12.5% à vie + bonus jusqu'à 40%!"
             else:
-                next_tier_text = "🎉 Alpha = 20% FOREVER!"
+                next_tier_text = "➡️ Upgrade ALPHA: 12.5% forever + bonus up to 40%!"
+        else:
+            # ALPHA: 12.5% permanent + bonuses with directs
+            if lang == 'fr':
+                next_tier_text = "🎉 Alpha = 12.5% à VIE!"
+            else:
+                next_tier_text = "🎉 Alpha = 12.5% FOREVER!"
             # Show next tier bonus
             tiers_info = [
-                (3, 0.25), (7, 0.30), (12, 0.40)
+                (5, 0.15), (10, 0.25), (20, 0.30), (30, 0.40)
             ]
             for thr, rate in tiers_info:
                 if active_directs < thr:
                     next_tier_text += f"\n➡️ {thr} directs → {int(rate*100)}% bonus"
                     break
-            if active_directs >= 12:
+            if active_directs >= 30:
                 next_tier_text += "\n✅ Max rate (40%) reached!"
         
         if lang == "fr":
@@ -1651,7 +1650,7 @@ async def callback_show_referral(callback: types.CallbackQuery):
                 f"💵 Commissions gagnées: ${stats['total']['total_earned']:.2f}\n"
                 f"💰 Mensuel récurrent: ${stats['total']['monthly_recurring']:.2f}\n\n"
                 f"🔥 Commission <b>RÉCURRENTE</b> chaque mois!\n\n"
-                f"❓ Besoin d'aide? <b>SUPPORT:</b> /support ou @ZEROR1SK"
+                f"❓ Besoin d'aide ? Contacte @Z3RORISK"
             )
             share_text = "Rejoins Risk0 Casino!"
         else:
@@ -1667,7 +1666,7 @@ async def callback_show_referral(callback: types.CallbackQuery):
                 f"💵 Earnings: ${stats['total']['total_earned']:.2f}\n"
                 f"💰 Monthly recurring: ${stats['total']['monthly_recurring']:.2f}\n\n"
                 f"🔥 <b>RECURRING</b> commission every month!\n\n"
-                f"❓ Need help? <b>SUPPORT:</b> /support or @ZEROR1SK"
+                f"❓ Need help? Contact @Z3RORISK"
             )
             share_text = "Join Risk0 Casino!"
         share_btn = "📱 Share" if lang == "en" else "📱 Partager"
