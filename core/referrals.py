@@ -1,8 +1,13 @@
 """
 Referral system with tier 1 and tier 2 commissions
-Dynamic tier-1 commission: base 20% → 25% (>=3 active) → 30% (>=7 active) → 40% (>=12 active)
+Dynamic tier-1 commission:
+- Base: 10%
+- Alpha: 12.5%
+- 5 clients: 15% + Alpha gratuit
+- 10 clients: 25%
+- 20 clients: 30%
+- 30+ clients: 40%
 Tier-2 commission fixed at 10%.
-Bonus: if a referrer has >=10 active direct referrals, grant them FREE PREMIUM (long expiry).
 """
 import string
 import random
@@ -21,7 +26,8 @@ class ReferralManager:
     
     # Base Commission rates (tier2 fixed). Tier1 is dynamic via get_dynamic_tier1_rate().
     COMMISSION_RATES = {
-        "tier1": 0.20,  # base 20% for direct referrals
+        "tier1": 0.10,  # base 10% for direct referrals
+        "tier1_alpha": 0.125,  # 12.5% for Alpha members
         "tier2": 0.10,  # 10% for second-tier referrals
     }
     
@@ -108,30 +114,31 @@ class ReferralManager:
         except Exception:
             active = 0
         
-        # FREE USERS: 8% base, 20% after 1 direct (permanent)
+        # Base rates
         if is_free:
-            if active >= 1:
-                return 0.20  # 20% once they get 1 direct, keep forever
-            return 0.08  # 8% starting rate
+            return 0.10  # 10% base for all users
+        else:
+            base_rate = 0.125  # 12.5% for Alpha members
         
-        # PREMIUM USERS: Original thresholds
-        # 12→40%, 7→30%, 3→25%, else 20%
-        if active >= 12:
-            return 0.40
-        if active >= 7:
-            return 0.30
-        if active >= 3:
-            return 0.25
-        return 0.20  # PREMIUM base is 20%
+        # Progressive thresholds
+        if active >= 30:
+            return 0.40  # 40% for 30+ clients
+        if active >= 20:
+            return 0.30  # 30% for 20+ clients
+        if active >= 10:
+            return 0.25  # 25% for 10+ clients
+        if active >= 5:
+            return 0.15  # 15% for 5+ clients
+        return base_rate  # 12.5% Alpha base or 10% Free base
 
     @staticmethod
     def award_free_premium_if_eligible(db: Session, referrer_id: int) -> bool:
-        """Grant long PREMIUM if referrer has >=10 active direct referrals. Returns True if granted/ensured."""
+        """Grant long PREMIUM if referrer has >=5 active direct referrals. Returns True if granted/ensured."""
         try:
             active = ReferralManager.count_active_tier1(db, referrer_id)
         except Exception:
             active = 0
-        if active < 10:
+        if active < 5:  # Changed from 10 to 5 clients
             return False
         u = db.query(User).filter(User.telegram_id == referrer_id).first()
         if not u:
