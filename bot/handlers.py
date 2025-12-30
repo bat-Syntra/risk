@@ -116,9 +116,10 @@ async def start_command(message: types.Message, state: FSMContext):
     # Handle deep link payloads (e.g., /start subscribe)
     logger.info(f"[START] message.text = '{message.text}'")
     if message.text and len(message.text.split()) > 1:
-        payload = message.text.split()[1].strip().lower()
-        logger.info(f"[START] payload detected = '{payload}'")
-        if payload == 'subscribe':
+        payload = message.text.split()[1].strip()
+        payload_lower = payload.lower()
+        logger.info(f"[START] payload detected = '{payload}' (lowercase: '{payload_lower}')")
+        if payload_lower == 'subscribe':
             # Forward to subscribe_command (defined later in this file)
             # We need to create user first if they don't exist, then call subscribe
             db = SessionLocal()
@@ -143,7 +144,7 @@ async def start_command(message: types.Message, state: FSMContext):
             # Use message.answer to show tiers directly
             await _show_subscribe_tiers(message)
             return
-        elif payload == 'getstarted':
+        elif payload_lower == 'getstarted':
             # Just show normal menu (fall through)
             pass
     
@@ -193,12 +194,18 @@ async def start_command(message: types.Message, state: FSMContext):
             # If started with referral payload, apply it now (after user exists)
             if message.text and len(message.text.split()) > 1:
                 referral_code = (message.text.split()[1] or "").strip()
-                if referral_code:
+                logger.info(f"[REFERRAL] Processing referral code: '{referral_code}' for user {user_tg.id}")
+                
+                if referral_code and referral_code.lower() not in ['subscribe', 'getstarted']:
                     try:
                         applied = ReferralManager.apply_referral(db, user_tg.id, referral_code)
-                    except Exception:
+                        logger.info(f"[REFERRAL] Applied referral result: {applied} for code '{referral_code}'")
+                    except Exception as e:
+                        logger.error(f"[REFERRAL] Error applying referral code '{referral_code}': {e}")
                         applied = False
+                    
                     if applied:
+                        logger.info(f"[REFERRAL] Successfully applied referral code '{referral_code}' for user {user_tg.id}")
                         # Notify referrer that their link was used
                         try:
                             referrer = db.query(User).filter(User.referral_code == referral_code).first()
@@ -217,12 +224,19 @@ async def start_command(message: types.Message, state: FSMContext):
                                     ref_text = (
                                         "🎁 <b>NEW REFERRAL</b>\n\n"
                                         f"{mention} just used your referral link and joined the bot.\n\n"
-                                        "You’ll earn 20% when they go PREMIUM.\n\n"
+                                        "You'll earn 20% when they go PREMIUM.\n\n"
                                         "📊 /mystats"
                                     )
                                 await message.bot.send_message(referrer.telegram_id, ref_text, parse_mode=ParseMode.HTML)
-                        except Exception:
-                            pass
+                                logger.info(f"[REFERRAL] Notified referrer {referrer.telegram_id} about new referral")
+                            else:
+                                logger.warning(f"[REFERRAL] Could not find referrer with code '{referral_code}'")
+                        except Exception as e:
+                            logger.error(f"[REFERRAL] Error notifying referrer: {e}")
+                    else:
+                        logger.warning(f"[REFERRAL] Failed to apply referral code '{referral_code}' for user {user_tg.id}")
+                else:
+                    logger.info(f"[REFERRAL] Skipping referral code processing - code is '{referral_code}'")
             # Ensure user has a referral code of their own
             try:
                 ReferralManager.create_user_referral_code(db, user_tg.id)

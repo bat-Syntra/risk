@@ -180,23 +180,34 @@ class ReferralManager:
         Returns:
             True if successfully applied
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"[REFERRAL] Attempting to apply referral code '{referral_code}' for user {referee_telegram_id}")
+        
         # Find referee (new user)
         referee = db.query(User).filter(User.telegram_id == referee_telegram_id).first()
         if not referee:
+            logger.error(f"[REFERRAL] Referee user {referee_telegram_id} not found in database")
             return False
         
         # Don't allow if already referred
         if referee.referred_by:
+            logger.warning(f"[REFERRAL] User {referee_telegram_id} already referred by {referee.referred_by}")
             return False
         
         # Find referrer by code
         referrer = db.query(User).filter(User.referral_code == referral_code).first()
         if not referrer:
+            logger.error(f"[REFERRAL] No referrer found with code '{referral_code}'")
             return False
         
         # Can't refer yourself
         if referrer.telegram_id == referee_telegram_id:
+            logger.warning(f"[REFERRAL] User {referee_telegram_id} tried to refer themselves")
             return False
+        
+        logger.info(f"[REFERRAL] Applying referral: {referrer.telegram_id} -> {referee_telegram_id}")
         
         # Apply referral
         referee.referred_by = referrer.telegram_id
@@ -213,6 +224,7 @@ class ReferralManager:
             ),
         )
         db.add(referral)
+        logger.info(f"[REFERRAL] Created tier 1 referral record")
         
         # Check for tier 2 referral (referrer was also referred by someone)
         if referrer.referred_by:
@@ -229,9 +241,16 @@ class ReferralManager:
                     commission_rate=ReferralManager.COMMISSION_RATES["tier2"],
                 )
                 db.add(tier2_referral)
+                logger.info(f"[REFERRAL] Created tier 2 referral record for original referrer {original_referrer.telegram_id}")
         
-        db.commit()
-        return True
+        try:
+            db.commit()
+            logger.info(f"[REFERRAL] Successfully committed referral application")
+            return True
+        except Exception as e:
+            logger.error(f"[REFERRAL] Error committing referral: {e}")
+            db.rollback()
+            return False
     
     @staticmethod
     def calculate_commission(
