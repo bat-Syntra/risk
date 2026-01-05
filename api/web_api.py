@@ -6,7 +6,7 @@ import json
 import asyncio
 import re
 from datetime import datetime, timedelta, date
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from pydantic import BaseModel
 from typing import Optional, List, Set
 from sqlalchemy import func, and_, extract, case
@@ -1146,6 +1146,11 @@ async def get_calendar_data(
 # ========== AUTH ENDPOINTS ==========
 # Store pending auth codes (in-memory, persistent since this runs continuously)
 import time
+import bcrypt
+import base64
+import json
+from datetime import datetime, timedelta
+from functools import wraps
 pending_auth_codes: dict = {}
 
 class AuthConfirm(BaseModel):
@@ -1153,6 +1158,15 @@ class AuthConfirm(BaseModel):
     telegramId: int
     username: str
     token: str  # The full token to return to the web
+
+class RegisterRequest(BaseModel):
+    email: str
+    username: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 @router.post("/auth/confirm")
@@ -1196,6 +1210,369 @@ async def check_auth(code: str):
         }
     
     return {"authenticated": False}
+
+
+def generate_jwt_token(user_data: dict) -> str:
+    """Generate JWT token for website authentication"""
+    token_data = {
+        "id": user_data["id"],
+        "email": user_data["email"],
+        "username": user_data["username"],
+        "tier": user_data["tier"],
+        "auth_method": user_data["auth_method"],
+        "ts": int(time.time())
+    }
+    # Simple base64 encoding (matching existing Telegram token format)
+    token_json = json.dumps(token_data)
+    token_b64 = base64.b64encode(token_json.encode()).decode()
+    return token_b64.replace('+', '-').replace('/', '_')  # URL-safe
+
+
+@router.post("/auth/register")
+async def register_user(data: RegisterRequest):
+    """Register new website user"""
+    db = SessionLocal()
+    try:
+        # Validate email format
+        import re
+        email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_regex, data.email):
+            raise HTTPException(status_code=400, detail="Format email invalide")
+        
+        # Validate username format
+        username_regex = r'^[a-zA-Z0-9_]{3,20}$'
+        if not re.match(username_regex, data.username):
+            raise HTTPException(status_code=400, detail="Username: 3-20 caractères, lettres/chiffres/_")
+        
+        # Validate password strength
+        if len(data.password) < 8:
+            raise HTTPException(status_code=400, detail="Mot de passe: minimum 8 caractères")
+        if not re.search(r'[A-Z]', data.password):
+            raise HTTPException(status_code=400, detail="Mot de passe: au moins 1 majuscule requise")
+        if not re.search(r'[0-9]', data.password):
+            raise HTTPException(status_code=400, detail="Mot de passe: au moins 1 chiffre requis")
+        
+        # Check if email already exists
+        existing_email = db.query(User).filter(User.email == data.email).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email déjà utilisé")
+        
+        # Check if username already exists (for website users)
+        existing_username = db.query(User).filter(
+            User.username == data.username,
+            User.auth_method == 'website'
+        ).first()
+        if existing_username:
+            raise HTTPException(status_code=400, detail="Username déjà pris")
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Create new user
+        new_user = User(
+            telegram_id=0,  # Use 0 for website users (since NOT NULL constraint)
+            username=data.username,
+            email=data.email,
+            auth_method='website',
+            password_hash=password_hash,
+            tier=TierLevel.FREE,  # Default to FREE tier
+            language='fr',  # Default to French
+            is_active=True,
+            
+            # Website-specific quotas
+            daily_ai_questions=5,
+            daily_ai_questions_used=0,
+            daily_calls_under_2_percent=5,
+            daily_calls_under_2_percent_used=0,
+            last_quota_reset=datetime.now().date(),
+            
+            # Default settings
+            default_bankroll=400.0,
+            default_risk_percentage=5.0,
+            notifications_enabled=True
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Generate JWT token
+        user_data = {
+            "id": new_user.id,
+            "email": new_user.email,
+            "username": new_user.username,
+            "tier": new_user.tier.value,
+            "auth_method": new_user.auth_method
+        }
+        token = generate_jwt_token(user_data)
+        
+        return {
+            "success": True,
+            "token": token,
+            "user": {
+                "id": new_user.id,
+                "email": new_user.email,
+                "username": new_user.username,
+                "tier": new_user.tier.value,
+                "quotas": {
+                    "ai_questions": new_user.daily_ai_questions,
+                    "calls_under_2": new_user.daily_calls_under_2_percent
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+    finally:
+        db.close()
+
+
+@router.post("/auth/login")
+async def login_user(data: LoginRequest):
+    """Login website user with email/password"""
+    db = SessionLocal()
+    try:
+        # Find user by email
+        user = db.query(User).filter(
+            User.email == data.email,
+            User.auth_method == 'website'
+        ).first()
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+        
+        # Check password
+        if not bcrypt.checkpw(data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+        
+        # Check if user is banned
+        if user.is_banned:
+            raise HTTPException(status_code=403, detail="Compte suspendu")
+        
+        # Reset quotas if new day
+        today = datetime.now().date()
+        if user.last_quota_reset != today:
+            user.daily_ai_questions_used = 0
+            user.daily_calls_under_2_percent_used = 0
+            user.last_quota_reset = today
+            db.commit()
+        
+        # Update last seen
+        user.last_seen = datetime.now()
+        db.commit()
+        
+        # Generate JWT token
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "tier": user.tier.value,
+            "auth_method": user.auth_method
+        }
+        token = generate_jwt_token(user_data)
+        
+        return {
+            "success": True,
+            "token": token,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "tier": user.tier.value,
+                "quotas": {
+                    "ai_questions": user.daily_ai_questions - user.daily_ai_questions_used,
+                    "calls_under_2": user.daily_calls_under_2_percent - user.daily_calls_under_2_percent_used
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+    finally:
+        db.close()
+
+
+def get_user_from_token(token: str) -> dict:
+    """Extract user data from JWT token"""
+    try:
+        # Handle URL-safe base64
+        token_clean = token.replace('-', '+').replace('_', '/')
+        decoded = json.loads(base64.b64decode(token_clean).decode())
+        return decoded
+    except:
+        return None
+
+
+def check_website_quotas(quota_type: str):
+    """
+    Middleware decorator to check quotas for website users
+    quota_type: 'ai_questions' or 'calls_under_2'
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Get token from request headers
+            from fastapi import Request, HTTPException
+            request = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request = arg
+                    break
+            
+            if not request:
+                return await func(*args, **kwargs)
+            
+            # Get Authorization header
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return await func(*args, **kwargs)
+            
+            token = auth_header.replace('Bearer ', '')
+            user_data = get_user_from_token(token)
+            
+            if not user_data or user_data.get('auth_method') != 'website':
+                # Not a website user, skip quota check
+                return await func(*args, **kwargs)
+            
+            # Check quotas for website users
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_data['id']).first()
+                if not user:
+                    raise HTTPException(status_code=401, detail="Utilisateur non trouvé")
+                
+                # Reset quotas if new day
+                today = datetime.now().date()
+                if user.last_quota_reset != today:
+                    user.daily_ai_questions_used = 0
+                    user.daily_calls_under_2_percent_used = 0
+                    user.last_quota_reset = today
+                    db.commit()
+                
+                # Check specific quota
+                if quota_type == 'ai_questions':
+                    if user.daily_ai_questions_used >= user.daily_ai_questions:
+                        raise HTTPException(
+                            status_code=429, 
+                            detail={
+                                "error": "Quota IA épuisé",
+                                "message": f"Vous avez utilisé vos {user.daily_ai_questions} questions IA aujourd'hui. Revenez demain ou passez premium!",
+                                "quota_reset": "minuit",
+                                "remaining": 0,
+                                "total": user.daily_ai_questions
+                            }
+                        )
+                    # Increment usage after successful check
+                    user.daily_ai_questions_used += 1
+                    db.commit()
+                
+                elif quota_type == 'calls_under_2':
+                    if user.daily_calls_under_2_percent_used >= user.daily_calls_under_2_percent:
+                        raise HTTPException(
+                            status_code=429,
+                            detail={
+                                "error": "Quota calls <2% épuisé", 
+                                "message": f"Vous avez utilisé vos {user.daily_calls_under_2_percent} calls sous 2% aujourd'hui. Upgrade pour unlimited!",
+                                "quota_reset": "minuit",
+                                "remaining": 0,
+                                "total": user.daily_calls_under_2_percent
+                            }
+                        )
+                    # Increment usage after successful check
+                    user.daily_calls_under_2_percent_used += 1
+                    db.commit()
+                
+                return await func(*args, **kwargs)
+                
+            finally:
+                db.close()
+        
+        return wrapper
+    return decorator
+
+
+@router.get("/quotas")
+async def get_user_quotas(request: Request):
+    """Get current user quotas"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail="Token manquant")
+    
+    token = auth_header.replace('Bearer ', '')
+    user_data = get_user_from_token(token)
+    
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    db = SessionLocal()
+    try:
+        if user_data.get('auth_method') == 'website':
+            # Website user - return quotas
+            user = db.query(User).filter(User.id == user_data['id']).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+            
+            # Reset quotas if new day
+            today = datetime.now().date()
+            if user.last_quota_reset != today:
+                user.daily_ai_questions_used = 0
+                user.daily_calls_under_2_percent_used = 0
+                user.last_quota_reset = today
+                db.commit()
+            
+            return {
+                "auth_method": "website",
+                "tier": user.tier.value,
+                "quotas": {
+                    "ai_questions": {
+                        "total": user.daily_ai_questions,
+                        "used": user.daily_ai_questions_used,
+                        "remaining": user.daily_ai_questions - user.daily_ai_questions_used
+                    },
+                    "calls_under_2": {
+                        "total": user.daily_calls_under_2_percent,
+                        "used": user.daily_calls_under_2_percent_used,
+                        "remaining": user.daily_calls_under_2_percent - user.daily_calls_under_2_percent_used
+                    }
+                },
+                "reset_time": "minuit"
+            }
+        else:
+            # Telegram user - no quotas
+            return {
+                "auth_method": "telegram",
+                "tier": user_data.get('tier', 'free'),
+                "quotas": {
+                    "ai_questions": {"total": "unlimited", "used": 0, "remaining": "unlimited"},
+                    "calls_under_2": {"total": "unlimited", "used": 0, "remaining": "unlimited"}
+                }
+            }
+    finally:
+        db.close()
+
+
+# Example usage of quota middleware
+@router.post("/ai/question")
+@check_website_quotas('ai_questions')
+async def ask_ai_question(request: Request, question: dict):
+    """AI question endpoint with quota checking"""
+    # This endpoint will automatically check quotas for website users
+    # and increment usage count
+    return {"response": "AI response here", "question": question.get("text", "")}
+
+
+@router.post("/calls/under-2-percent")
+@check_website_quotas('calls_under_2')
+async def get_calls_under_2_percent(request: Request, filters: dict):
+    """Get calls under 2% with quota checking"""
+    # This endpoint will automatically check quotas for website users
+    return {"calls": [], "message": "Calls under 2% here"}
 
 
 # ===== REFERRAL SYSTEM ENDPOINTS =====

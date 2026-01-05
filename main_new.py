@@ -5399,9 +5399,9 @@ async def runner():
         server = uvicorn.Server(config)
         await server.serve()
     
-    # Run FastAPI, Telegram bot, Auto-backup system, and Middle questionnaire loop
+    # Run Telegram bot, Auto-backup system, and Middle questionnaire loop
+    # Note: Web server disabled - dashboard runs on Vercel
     tasks = [
-        serve(),
         dp.start_polling(bot),
     ]
     

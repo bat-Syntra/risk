@@ -33,6 +33,17 @@ class User(Base):
     email = Column(String(255))
     language = Column(String(10), default="en")  # User's preferred language (fr/en)
     
+    # Authentication method and website-specific fields
+    auth_method = Column(String(20), default="telegram")  # 'telegram' or 'website'
+    password_hash = Column(String(255))  # For website users
+    
+    # Website user quotas
+    daily_ai_questions = Column(Integer, default=5)
+    daily_ai_questions_used = Column(Integer, default=0)
+    daily_calls_under_2_percent = Column(Integer, default=5)
+    daily_calls_under_2_percent_used = Column(Integer, default=0)
+    last_quota_reset = Column(Date)
+    
     # Web session (for single device login)
     web_session_id = Column(String(32), nullable=True)  # Current active web session
     
