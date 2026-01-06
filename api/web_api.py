@@ -1270,10 +1270,10 @@ async def register_user(data: RegisterRequest):
         password_hash = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # Generate unique telegram_id for website users (negative numbers to avoid conflicts)
-        # Find the lowest negative telegram_id available
+        # Find the lowest telegram_id available (including 0 and negatives)
         last_website_user = db.query(User).filter(
             User.auth_method == 'website',
-            User.telegram_id < 0
+            User.telegram_id <= 0
         ).order_by(User.telegram_id.asc()).first()
         
         if last_website_user:
