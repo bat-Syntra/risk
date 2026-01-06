@@ -1268,9 +1268,21 @@ async def register_user(data: RegisterRequest):
         # Hash password
         password_hash = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
+        # Generate unique telegram_id for website users (negative numbers to avoid conflicts)
+        # Find the lowest negative telegram_id available
+        last_website_user = db.query(User).filter(
+            User.auth_method == 'website',
+            User.telegram_id < 0
+        ).order_by(User.telegram_id.asc()).first()
+        
+        if last_website_user:
+            next_telegram_id = last_website_user.telegram_id - 1
+        else:
+            next_telegram_id = -1  # Start with -1 for first website user
+        
         # Create new user
         new_user = User(
-            telegram_id=0,  # Use 0 for website users (since NOT NULL constraint)
+            telegram_id=next_telegram_id,  # Use negative IDs for website users
             username=data.username,
             email=data.email,
             auth_method='website',
