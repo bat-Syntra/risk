@@ -1163,7 +1163,7 @@ class RegisterRequest(BaseModel):
     email: str
     username: str
     password: str
-    telegram_username: str = None  # Optional Telegram username for account linking
+    telegram_username: Optional[str] = None  # Optional Telegram username for account linking
 
 class LoginRequest(BaseModel):
     email: str
