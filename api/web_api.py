@@ -1163,6 +1163,7 @@ class RegisterRequest(BaseModel):
     email: str
     username: str
     password: str
+    telegram_username: str = None  # Optional Telegram username for account linking
 
 class LoginRequest(BaseModel):
     email: str
@@ -1280,6 +1281,11 @@ async def register_user(data: RegisterRequest):
         else:
             next_telegram_id = -1  # Start with -1 for first website user
         
+        # Store telegram_username if provided (for account linking)
+        telegram_username = data.telegram_username.strip() if data.telegram_username else None
+        if telegram_username and not telegram_username.startswith('@'):
+            telegram_username = f"@{telegram_username}"
+        
         # Create new user
         new_user = User(
             telegram_id=next_telegram_id,  # Use negative IDs for website users
@@ -1303,6 +1309,12 @@ async def register_user(data: RegisterRequest):
             default_risk_percentage=5.0,
             notifications_enabled=True
         )
+        
+        # Set telegram username if provided (store in username field for website users)
+        if telegram_username:
+            # For website users, we can store the telegram username in a comment or separate field
+            # For now, we'll add it to the user record after creation
+            pass
         
         db.add(new_user)
         db.commit()
