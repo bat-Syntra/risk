@@ -5402,6 +5402,7 @@ async def runner():
     # Run Telegram bot, Auto-backup system, and Middle questionnaire loop
     # Note: Web server disabled - dashboard runs on Vercel
     tasks = [
+        serve(),
         dp.start_polling(bot),
     ]
     
