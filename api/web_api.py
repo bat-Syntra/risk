@@ -1794,6 +1794,8 @@ async def telegram_link_request(request: TelegramLinkRequest):
     Initiate Telegram account linking by generating and sending OTP
     """
     try:
+        print(f"🔧 DEBUG: Received request - userId: {request.userId}, telegramUsername: {request.telegramUsername}")
+        print(f"🔧 DEBUG: Request payload validation passed")
         db = SessionLocal()
         
         # Find user by ID
