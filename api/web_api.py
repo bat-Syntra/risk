@@ -1778,6 +1778,7 @@ async def demo_access(request: Request):
 class TelegramLinkRequest(BaseModel):
     userId: str
     otpCode: str
+    telegramUsername: str
     email: Optional[str] = None
 
 class TelegramVerifyRequest(BaseModel):
