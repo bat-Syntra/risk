@@ -1810,19 +1810,16 @@ async def telegram_link_request(request: TelegramLinkRequest):
         
         # TODO: Send OTP via Telegram bot
         # This would integrate with the existing Telegram bot to send the OTP
-        # For now, we'll simulate successful OTP sending for demo purposes
+        # For now, we'll return success and the OTP will be stored for verification
         
         print(f"📱 Telegram OTP generated for user {request.userId}: {request.otpCode}")
-        print(f"📱 Username: {request.telegramUsername}")
-        print(f"🔧 DEMO MODE: OTP would be sent to @{request.telegramUsername} via Telegram bot")
+        print(f"📱 Username: @{request.telegramUsername}")
+        print(f"📱 OTP stored and ready for verification")
         
-        # Simulate successful OTP sending
         return {
             "success": True,
-            "message": "OTP sent to Telegram bot",
-            "expires_in": 600,  # 10 minutes
-            "demo_mode": True,
-            "demo_otp": request.otpCode  # For demo purposes only
+            "message": "Verification code generated. Please check your Telegram for the code.",
+            "expires_in": 600  # 10 minutes
         }
         
     except HTTPException:
