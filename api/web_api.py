@@ -1326,7 +1326,8 @@ async def register_user(data: RegisterRequest):
             "email": new_user.email,
             "username": new_user.username,
             "tier": new_user.tier.value,
-            "auth_method": new_user.auth_method
+            "auth_method": new_user.auth_method,
+            "telegram_id": new_user.telegram_id  # Include telegram_id for compatibility
         }
         token = generate_jwt_token(user_data)
         
@@ -1394,7 +1395,8 @@ async def login_user(data: LoginRequest):
             "email": user.email,
             "username": user.username,
             "tier": user.tier.value,
-            "auth_method": user.auth_method
+            "auth_method": user.auth_method,
+            "telegram_id": user.telegram_id  # Include telegram_id for compatibility
         }
         token = generate_jwt_token(user_data)
         
@@ -1550,9 +1552,16 @@ async def get_user_quotas(request: Request):
                 user.last_quota_reset = today
                 db.commit()
             
+            # Map tier to frontend expected format
+            tier_mapping = {
+                TierLevel.FREE: 'FREE',
+                TierLevel.PREMIUM: 'ALPHA'
+            }
+            tier_str = tier_mapping.get(user.tier, 'FREE')
+            
             return {
                 "auth_method": "website",
-                "tier": user.tier.value,
+                "tier": tier_str,
                 "quotas": {
                     "ai_questions": {
                         "total": user.daily_ai_questions,
@@ -1697,3 +1706,65 @@ async def get_referral_link(telegram_id: int):
         }
     finally:
         db.close()
+
+
+@router.get("/demo/access")
+async def demo_access(request: Request):
+    """Allow FREE users to access dashboard with limitations"""
+    try:
+        # Get Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            raise HTTPException(status_code=401, detail="Token manquant")
+        
+        token = auth_header.replace('Bearer ', '')
+        user_data = get_user_from_token(token)
+        
+        if not user_data:
+            raise HTTPException(status_code=401, detail="Token invalide")
+        
+        db = SessionLocal()
+        try:
+            # Find user
+            if user_data.get('auth_method') == 'website':
+                user = db.query(User).filter(User.id == user_data['id']).first()
+            else:
+                telegram_id = user_data.get('tid') or user_data.get('telegramId')
+                user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+            
+            # All users can access demo (FREE with limitations, PREMIUM unlimited)
+            tier_mapping = {
+                TierLevel.FREE: 'FREE',
+                TierLevel.PREMIUM: 'ALPHA'
+            }
+            tier_str = tier_mapping.get(user.tier, 'FREE')
+            
+            return {
+                "success": True,
+                "access_granted": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "tier": tier_str,
+                    "auth_method": user.auth_method
+                },
+                "limitations": {
+                    "ai_questions_per_day": 5 if user.tier == TierLevel.FREE else "unlimited",
+                    "calls_per_day": 5 if user.tier == TierLevel.FREE else "unlimited",
+                    "max_profit_percentage": 2.0 if user.tier == TierLevel.FREE else None
+                },
+                "redirect": "/dashboard"
+            }
+            
+        finally:
+            db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Demo access error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur serveur")
