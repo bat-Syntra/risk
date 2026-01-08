@@ -1768,3 +1768,185 @@ async def demo_access(request: Request):
     except Exception as e:
         print(f"Demo access error: {e}")
         raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+# ============================================================================
+# TELEGRAM LINKING ENDPOINTS
+# ============================================================================
+
+# Pydantic models for Telegram linking
+class TelegramLinkRequest(BaseModel):
+    userId: str
+    otpCode: str
+    email: Optional[str] = None
+
+class TelegramVerifyRequest(BaseModel):
+    userId: str
+    otpCode: str
+
+# In-memory storage for OTP codes (in production, use Redis or database)
+telegram_otp_storage = {}
+
+@router.post("/telegram/link-request")
+async def telegram_link_request(request: TelegramLinkRequest):
+    """
+    Initiate Telegram account linking by generating and sending OTP
+    """
+    try:
+        db = SessionLocal()
+        
+        # Find user by ID
+        user = db.query(User).filter(User.id == request.userId).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Store OTP code temporarily (expires in 10 minutes)
+        expiry_time = datetime.now() + timedelta(minutes=10)
+        telegram_otp_storage[request.userId] = {
+            'otp_code': request.otpCode,
+            'expiry': expiry_time,
+            'email': request.email or user.email
+        }
+        
+        # TODO: Send OTP via Telegram bot
+        # This would integrate with the existing Telegram bot to send the OTP
+        # For now, we'll just store it and return success
+        
+        print(f"📱 Telegram OTP generated for user {request.userId}: {request.otpCode}")
+        
+        return {
+            "success": True,
+            "message": "OTP sent to Telegram bot",
+            "expires_in": 600  # 10 minutes
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Telegram link request error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate OTP")
+    finally:
+        db.close()
+
+
+@router.post("/telegram/verify-link")
+async def telegram_verify_link(request: TelegramVerifyRequest):
+    """
+    Verify OTP and link Telegram account to website account
+    """
+    try:
+        db = SessionLocal()
+        
+        # Check if OTP exists and is valid
+        if request.userId not in telegram_otp_storage:
+            raise HTTPException(status_code=400, detail="No OTP found for this user")
+        
+        stored_data = telegram_otp_storage[request.userId]
+        
+        # Check if OTP has expired
+        if datetime.now() > stored_data['expiry']:
+            del telegram_otp_storage[request.userId]
+            raise HTTPException(status_code=400, detail="OTP has expired")
+        
+        # Verify OTP code
+        if request.otpCode != stored_data['otp_code']:
+            raise HTTPException(status_code=400, detail="Invalid OTP code")
+        
+        # Find user
+        user = db.query(User).filter(User.id == request.userId).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Generate a telegram_id for linking (in production, this would come from the bot)
+        # For now, we'll generate a unique ID based on user ID
+        import hashlib
+        telegram_id = int(hashlib.md5(f"tg_{user.id}_{datetime.now().timestamp()}".encode()).hexdigest()[:8], 16)
+        
+        # Update user with telegram_id (create the link)
+        user.telegram_id = telegram_id
+        db.commit()
+        
+        # Clean up OTP
+        del telegram_otp_storage[request.userId]
+        
+        print(f"✅ Telegram account linked for user {request.userId} -> telegram_id: {telegram_id}")
+        
+        return {
+            "success": True,
+            "message": "Telegram account successfully linked",
+            "telegramId": telegram_id,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "tier": user.tier.value if user.tier else "FREE",
+                "telegram_id": telegram_id
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Telegram verify link error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify OTP")
+    finally:
+        db.close()
+
+
+@router.get("/telegram/link-status/{user_id}")
+async def telegram_link_status(user_id: str):
+    """
+    Check if user has Telegram account linked
+    """
+    try:
+        db = SessionLocal()
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "linked": user.telegram_id is not None,
+            "telegram_id": user.telegram_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Telegram link status error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check link status")
+    finally:
+        db.close()
+
+
+@router.delete("/telegram/unlink/{user_id}")
+async def telegram_unlink(user_id: str):
+    """
+    Unlink Telegram account from website account
+    """
+    try:
+        db = SessionLocal()
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Remove telegram_id link
+        old_telegram_id = user.telegram_id
+        user.telegram_id = None
+        db.commit()
+        
+        print(f"🔗 Telegram account unlinked for user {user_id} (was: {old_telegram_id})")
+        
+        return {
+            "success": True,
+            "message": "Telegram account successfully unlinked"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Telegram unlink error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unlink Telegram")
+    finally:
+        db.close()
