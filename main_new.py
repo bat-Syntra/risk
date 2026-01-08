@@ -82,9 +82,14 @@ calc_router = Router()
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your domain
+    allow_origins=[
+        "https://smartrisk0.xyz",
+        "http://localhost:3000", 
+        "http://localhost:3001",
+        "https://*.vercel.app"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
