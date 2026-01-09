@@ -1143,20 +1143,22 @@ async def get_calendar_data(
         db.close()
 
 
-# ========== AUTH ENDPOINTS ==========
-# Store pending auth codes (in-memory, persistent since this runs continuously)
-import time
-import bcrypt
-import base64
-import json
-from datetime import datetime, timedelta
-from functools import wraps
-pending_auth_codes: dict = {}
+    # ========== AUTH ENDPOINTS ==========
+    # Store pending auth codes (in-memory, persistent since this runs continuously)
+    import time
+    import bcrypt
+    import json
+    import secrets
+    import jwt
+    from datetime import datetime, timedelta
+    from typing import Optional, List
+    from pydantic import BaseModel
 
-class AuthConfirm(BaseModel):
-    code: str
-    telegramId: int
-    username: str
+    class AuthConfirm(BaseModel):
+        code: str
+        telegramId: int
+        username: str
+        token: str  # The full token to return to the web
     token: str  # The full token to return to the web
 
 class RegisterRequest(BaseModel):
@@ -1945,6 +1947,24 @@ if referrals_storage:
     print(f"📊 STARTUP: Total {total_referrals} referrals across all users")
     for user_id, refs in referrals_storage.items():
         print(f"   User {user_id}: {len(refs)} referrals")
+
+# JWT functions
+JWT_SECRET = "your-secret-key-here"  # In production, use env variable
+
+def decode_jwt_token(token: str):
+    """Decode JWT token and return user data"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        print(f"🔑 JWT ERROR: Token expired")
+        return None
+    except jwt.InvalidTokenError as e:
+        print(f"🔑 JWT ERROR: Invalid token - {e}")
+        return None
+    except Exception as e:
+        print(f"🔑 JWT ERROR: Decode error - {e}")
+        return None
 
 # In-memory storage for OTP codes (in production, use Redis or database)
 telegram_otp_storage = {}
