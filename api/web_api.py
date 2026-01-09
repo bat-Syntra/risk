@@ -1150,6 +1150,7 @@ import bcrypt
 import json
 import secrets
 import jwt
+from functools import wraps
 from datetime import datetime, timedelta
 from typing import Optional, List
 from pydantic import BaseModel
