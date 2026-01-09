@@ -1159,7 +1159,6 @@ async def get_calendar_data(
         telegramId: int
         username: str
         token: str  # The full token to return to the web
-    token: str  # The full token to return to the web
 
 class RegisterRequest(BaseModel):
     email: str
