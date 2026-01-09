@@ -1330,12 +1330,42 @@ async def register_user(data: RegisterRequest):
                 # Find the referrer user
                 referrer = db.query(User).filter(User.id == referrer_id).first()
                 if referrer:
-                    # Check if Referral table exists, if not create entry in a simple way
-                    # For now, we'll add a simple tracking mechanism
                     print(f"🎯 REFERRAL TRACKED: User {new_user.id} ({new_user.email}) referred by User {referrer_id} ({referrer.email if referrer.email else referrer.username})")
                     
-                    # You can add to Referral table here when it's properly set up
-                    # For now, just log the referral for tracking
+                    # Create a simple referral record using the User table
+                    # We'll add a comment field to track the referrer relationship
+                    # For now, we'll use a simple approach until we have a dedicated Referral table
+                    
+                    # We could add referral info to user's data or create a simple tracking mechanism
+                    # For immediate implementation, let's store this in the user record
+                    try:
+                        # Update the new user with referrer info (for now using a field if available)
+                        # This is a temporary solution - in production we'd have a proper Referrals table
+                        
+                        # Create referral tracking entry (simplified approach)
+                        referral_data = {
+                            "referred_user_id": new_user.id,
+                            "referrer_user_id": referrer_id,
+                            "referred_email": new_user.email,
+                            "referred_username": new_user.username,
+                            "referrer_email": referrer.email,
+                            "referrer_username": referrer.username,
+                            "registration_date": datetime.now().isoformat(),
+                            "tier": new_user.tier.value,
+                            "status": "active"
+                        }
+                        
+                        # Save to in-memory storage (in production this would be a database table)
+                        if referrer_id not in referrals_storage:
+                            referrals_storage[referrer_id] = []
+                        referrals_storage[referrer_id].append(referral_data)
+                        
+                        print(f"💾 REFERRAL SAVED: {referral_data}")
+                        print(f"📊 REFERRALS STORAGE: User {referrer_id} now has {len(referrals_storage[referrer_id])} referrals")
+                        
+                    except Exception as save_error:
+                        print(f"⚠️ REFERRAL SAVE ERROR: {save_error}")
+                        
                 else:
                     print(f"⚠️ REFERRAL WARNING: Referrer ID {referrer_id} not found")
             except ValueError:
@@ -1398,35 +1428,46 @@ async def get_user_referrals(request: Request):
         
         db = SessionLocal()
         
-        # For now, we'll create a simple tracking system using logs
-        # In a real implementation, you'd have a Referrals table
-        # For demo purposes, we'll return mock data based on user ID
+        # Get real referral data from storage
+        referrals_data = referrals_storage.get(user_id, [])
         
-        # This is a temporary solution - in production you'd query a proper Referrals table
-        referrals_data = []
+        # Transform the stored data to match API format
+        api_referrals = []
+        for referral in referrals_data:
+            api_referrals.append({
+                "id": referral.get("referred_user_id"),
+                "username": referral.get("referred_username"),
+                "email": referral.get("referred_email"),
+                "registration_date": referral.get("registration_date"),
+                "tier": referral.get("tier"),
+                "status": referral.get("status")
+            })
         
-        # Mock some referral data for demonstration
-        # Add demo data for any user to test the dashboard
-        referrals_data = [
-            {
-                "id": 1,
-                "username": "demo_user_1",
-                "email": "demo1@example.com",
-                "registration_date": "2025-01-09T14:30:00Z",
-                "tier": "free",
-                "status": "active"
-            },
-            {
-                "id": 2,
-                "username": "demo_user_2", 
-                "email": "demo2@example.com",
-                "registration_date": "2025-01-09T15:15:00Z",
-                "tier": "free",
-                "status": "active"
-            }
-        ]
+        # If no real referrals exist, add demo data for testing
+        if not api_referrals:
+            api_referrals = [
+                {
+                    "id": 1,
+                    "username": "demo_user_1",
+                    "email": "demo1@example.com", 
+                    "registration_date": "2025-01-09T14:30:00Z",
+                    "tier": "free",
+                    "status": "active"
+                },
+                {
+                    "id": 2,
+                    "username": "demo_user_2",
+                    "email": "demo2@example.com",
+                    "registration_date": "2025-01-09T15:15:00Z", 
+                    "tier": "free",
+                    "status": "active"
+                }
+            ]
+            print(f"📊 REFERRALS API: User {user_id} has no real referrals, showing demo data")
+        else:
+            print(f"🎯 REFERRALS API: User {user_id} has {len(api_referrals)} REAL referrals")
         
-        print(f"🎯 REFERRALS API: User {user_id} requesting referrals, returning {len(referrals_data)} items")
+        referrals_data = api_referrals
         
         return {
             "success": True,
@@ -1879,6 +1920,12 @@ class TelegramLinkRequest(BaseModel):
 class TelegramVerifyRequest(BaseModel):
     userId: str
     otpCode: str
+
+# Temporary storage for OTP codes (in production, use Redis)
+otp_storage = {}
+
+# Temporary storage for referrals (in production, use proper database table)
+referrals_storage = {}
 
 # In-memory storage for OTP codes (in production, use Redis or database)
 telegram_otp_storage = {}
