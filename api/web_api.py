@@ -1443,27 +1443,9 @@ async def get_user_referrals(request: Request):
                 "status": referral.get("status")
             })
         
-        # If no real referrals exist, add demo data for testing
+        # Return only real referral data - no demo fallback
         if not api_referrals:
-            api_referrals = [
-                {
-                    "id": 1,
-                    "username": "demo_user_1",
-                    "email": "demo1@example.com", 
-                    "registration_date": "2025-01-09T14:30:00Z",
-                    "tier": "free",
-                    "status": "active"
-                },
-                {
-                    "id": 2,
-                    "username": "demo_user_2",
-                    "email": "demo2@example.com",
-                    "registration_date": "2025-01-09T15:15:00Z", 
-                    "tier": "free",
-                    "status": "active"
-                }
-            ]
-            print(f"📊 REFERRALS API: User {user_id} has no real referrals, showing demo data")
+            print(f"📊 REFERRALS API: User {user_id} has no referrals yet")
         else:
             print(f"🎯 REFERRALS API: User {user_id} has {len(api_referrals)} REAL referrals")
         
