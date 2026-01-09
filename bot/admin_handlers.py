@@ -281,6 +281,10 @@ async def _build_admin_dashboard(telegram_id: int):
                 InlineKeyboardButton(text="📊 Stats", callback_data="admin_stats"),
                 InlineKeyboardButton(text="📎 Feedbacks", callback_data="admin_fb_menu"),
             ],
+            [
+                InlineKeyboardButton(text="💰 Affiliates", callback_data="admin_affiliates"),
+                InlineKeyboardButton(text="💳 Paiements", callback_data="admin_payments"),
+            ],
         ]
         
         # Super admin only sections
@@ -969,14 +973,39 @@ async def callback_admin_stats(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "admin_affiliates")
 async def callback_admin_affiliates(callback: types.CallbackQuery):
-    """Affiliate dashboard: list referrers with counts and pending payouts."""
+    """Affiliate dashboard: list referrers with counts and pending payouts + NEW commission tiers."""
     if not is_admin(callback.from_user.id):
         await callback.answer("❌ Accès refusé", show_alert=True)
         return
     await callback.answer()
     db = SessionLocal()
     try:
-        # Aggregate tier1 by referrer
+        # Load NEW referrals from file storage
+        import json
+        import os
+        referrals_file = "/tmp/referrals_storage.json"
+        referrals_storage = {}
+        
+        if os.path.exists(referrals_file):
+            with open(referrals_file, 'r') as f:
+                referrals_storage = json.load(f)
+        
+        # Commission tiers calculation function
+        def calculate_commission_rate(referral_count: int, is_alpha: bool = False) -> dict:
+            if referral_count >= 30:
+                return {"rate": 40.0, "tier": "🏆 Champion"}
+            elif referral_count >= 20:
+                return {"rate": 30.0, "tier": "🌟 Elite"}
+            elif referral_count >= 10:
+                return {"rate": 25.0, "tier": "💎 Diamond"}
+            elif referral_count >= 5:
+                return {"rate": 15.0, "tier": "⭐ Star + Alpha"}
+            elif is_alpha:
+                return {"rate": 12.5, "tier": "👑 Alpha"}
+            else:
+                return {"rate": 10.0, "tier": "🎯 Base"}
+        
+        # Aggregate OLD tier1 by referrer (database)
         from sqlalchemy import func
         tier1 = db.query(
             Referral.referrer_id,
@@ -984,7 +1013,8 @@ async def callback_admin_affiliates(callback: types.CallbackQuery):
             func.sum(Referral.pending_commission),
             func.sum(Referral.total_earned),
         ).group_by(Referral.referrer_id).all()
-        # Aggregate tier2 by original referrer
+        
+        # Aggregate OLD tier2 by original referrer (database)
         tier2 = db.query(
             ReferralTier2.original_referrer_id,
             func.count(ReferralTier2.id),
@@ -992,29 +1022,53 @@ async def callback_admin_affiliates(callback: types.CallbackQuery):
             func.sum(ReferralTier2.total_earned),
         ).group_by(ReferralTier2.original_referrer_id).all()
         t2_map = {r[0]: r[1:] for r in tier2}
-        lines = ["🤝 <b>AFFILIATES</b>\n"]
+        
+        lines = ["🤝 <b>AFFILIATES DASHBOARD</b>\n"]
+        lines.append(f"📊 <b>NEW System:</b> {len(referrals_storage)} users, {sum(len(refs) for refs in referrals_storage.values())} referrals\n")
+        
+        # Show NEW referrals from file storage
+        if referrals_storage:
+            lines.append("<b>🆕 NEW REFERRALS (File Storage):</b>")
+            for user_id, refs in referrals_storage.items():
+                count = len(refs)
+                commission = calculate_commission_rate(count)
+                u = db.query(User).filter(User.id == int(user_id)).first()
+                uname = f"@{u.username}" if u and u.username else f"User{user_id}"
+                lines.append(f"{uname} — {count} refs | {commission['tier']} ({commission['rate']}%)")
+            lines.append("")
+        
+        # Show OLD referrals from database
         rows = []
-        for ref_id, cnt1, pend1, earn1 in tier1:
-            cnt2, pend2, earn2 = t2_map.get(ref_id, (0, 0.0, 0.0))
-            cnt1 = cnt1 or 0
-            cnt2 = cnt2 or 0
-            pend1 = float(pend1 or 0.0)
-            pend2 = float(pend2 or 0.0)
-            earn1 = float(earn1 or 0.0)
-            earn2 = float(earn2 or 0.0)
-            total_cnt = cnt1 + cnt2
-            total_pending = pend1 + pend2
-            total_earned = earn1 + earn2
-            u = db.query(User).filter(User.telegram_id == ref_id).first()
-            uname = f"@{u.username}" if u and u.username else str(ref_id)
-            lines.append(f"{uname} — T1:{cnt1} T2:{cnt2} | Pending: ${total_pending:.2f} | Earned: ${total_earned:.2f}")
-            rows.append([InlineKeyboardButton(text=f"👤 {uname}", callback_data=f"admin_affiliate_{ref_id}")])
+        if tier1:
+            lines.append("<b>📜 OLD REFERRALS (Database):</b>")
+            for ref_id, cnt1, pend1, earn1 in tier1:
+                cnt2, pend2, earn2 = t2_map.get(ref_id, (0, 0.0, 0.0))
+                cnt1 = cnt1 or 0
+                cnt2 = cnt2 or 0
+                total_cnt = cnt1 + cnt2
+                total_pending = float(pend1 or 0.0) + float(pend2 or 0.0)
+                total_earned = float(earn1 or 0.0) + float(earn2 or 0.0)
+                
+                u = db.query(User).filter(User.telegram_id == ref_id).first()
+                uname = f"@{u.username}" if u and u.username else str(ref_id)
+                lines.append(f"{uname} — T1:{cnt1} T2:{cnt2} | Pending: ${total_pending:.2f} | Earned: ${total_earned:.2f}")
+                rows.append([InlineKeyboardButton(text=f"👤 {uname}", callback_data=f"admin_affiliate_{ref_id}")])
+        
+        # Commission tiers summary
+        lines.append("\n<b>💰 COMMISSION TIERS:</b>")
+        lines.append("🎯 Base: 10% | 👑 Alpha: 12.5%")
+        lines.append("⭐ Star (5+): 15% + Alpha | 💎 Diamond (10+): 25%")
+        lines.append("🌟 Elite (20+): 30% | 🏆 Champion (30+): 40%")
+        
         if len(rows) == 0:
             rows.append([InlineKeyboardButton(text="◀️ Retour", callback_data="admin_refresh")])
-            await callback.message.edit_text("🤝 Aucun affilié", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
-            return
-        rows.append([InlineKeyboardButton(text="◀️ Retour", callback_data="admin_refresh")])
-        await callback.message.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+        else:
+            rows.append([InlineKeyboardButton(text="◀️ Retour", callback_data="admin_refresh")])
+        
+        if not referrals_storage and not tier1:
+            await callback.message.edit_text("🤝 Aucun affilié trouvé", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+        else:
+            await callback.message.edit_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
     finally:
         db.close()
 
