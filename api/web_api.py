@@ -1355,13 +1355,17 @@ async def register_user(data: RegisterRequest):
                             "status": "active"
                         }
                         
-                        # Save to in-memory storage (in production this would be a database table)
+                        # Save to persistent storage (file-based until proper database)
                         if referrer_id not in referrals_storage:
                             referrals_storage[referrer_id] = []
                         referrals_storage[referrer_id].append(referral_data)
                         
+                        # Save to file for persistence across server restarts
+                        save_referrals_to_file()
+                        
                         print(f"💾 REFERRAL SAVED: {referral_data}")
                         print(f"📊 REFERRALS STORAGE: User {referrer_id} now has {len(referrals_storage[referrer_id])} referrals")
+                        print(f"🔄 REFERRALS PERSISTED to file storage")
                         
                     except Exception as save_error:
                         print(f"⚠️ REFERRAL SAVE ERROR: {save_error}")
@@ -1908,6 +1912,39 @@ otp_storage = {}
 
 # Temporary storage for referrals (in production, use proper database table)
 referrals_storage = {}
+
+def load_referrals_from_file():
+    """Load referrals from file storage"""
+    try:
+        import os
+        referrals_file = "/tmp/referrals_storage.json"
+        if os.path.exists(referrals_file):
+            import json
+            with open(referrals_file, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ REFERRALS LOAD ERROR: {e}")
+    return {}
+
+def save_referrals_to_file():
+    """Save referrals to file storage"""
+    try:
+        import json
+        referrals_file = "/tmp/referrals_storage.json"
+        with open(referrals_file, 'w') as f:
+            json.dump(referrals_storage, f, indent=2)
+        print(f"💾 REFERRALS SAVED to file: {len(referrals_storage)} users")
+    except Exception as e:
+        print(f"⚠️ REFERRALS SAVE ERROR: {e}")
+
+# Load existing referrals on startup
+referrals_storage = load_referrals_from_file()
+print(f"🔄 STARTUP: Loaded {len(referrals_storage)} users with referrals from storage")
+if referrals_storage:
+    total_referrals = sum(len(refs) for refs in referrals_storage.values())
+    print(f"📊 STARTUP: Total {total_referrals} referrals across all users")
+    for user_id, refs in referrals_storage.items():
+        print(f"   User {user_id}: {len(refs)} referrals")
 
 # In-memory storage for OTP codes (in production, use Redis or database)
 telegram_otp_storage = {}
