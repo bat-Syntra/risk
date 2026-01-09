@@ -94,7 +94,14 @@ print(f"🚨 CORS TEMPORARY: Using wildcard (*) until server restart")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TEMPORARY: Allow all origins
+    allow_origins=[
+        "https://smartrisk0.xyz",
+        "https://www.smartrisk0.xyz", 
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://*.vercel.app",
+        "*"  # Fallback wildcard
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
