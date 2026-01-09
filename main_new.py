@@ -80,18 +80,39 @@ calc_router = Router()
 
 # CORS for web dashboard
 from fastapi.middleware.cors import CORSMiddleware
+
+# Debug: Log CORS configuration
+cors_origins = [
+    "https://smartrisk0.xyz",
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    "https://*.vercel.app"
+]
+print(f"🔧 CORS DEBUG: Configuring CORS with origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://smartrisk0.xyz",
-        "http://localhost:3000", 
-        "http://localhost:3001",
-        "https://*.vercel.app"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+print(f"🔧 CORS DEBUG: CORS middleware configured successfully")
+
+# Add middleware to log CORS requests
+@app.middleware("http")
+async def log_cors_requests(request: Request, call_next):
+    origin = request.headers.get("origin")
+    method = request.method
+    path = request.url.path
+    
+    if origin:
+        print(f"🔧 CORS REQUEST: {method} {path} from origin: {origin}")
+        if origin not in cors_origins and not any(origin.endswith(allowed.replace("https://", "").replace("*.", "")) for allowed in cors_origins if "*" in allowed):
+            print(f"❌ CORS BLOCKED: Origin {origin} not in allowed origins: {cors_origins}")
+    
+    response = await call_next(request)
+    return response
 
 # Web Dashboard API
 from api.web_api import router as web_router, manager as ws_manager
