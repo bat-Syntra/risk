@@ -1143,22 +1143,22 @@ async def get_calendar_data(
         db.close()
 
 
-    # ========== AUTH ENDPOINTS ==========
-    # Store pending auth codes (in-memory, persistent since this runs continuously)
-    import time
-    import bcrypt
-    import json
-    import secrets
-    import jwt
-    from datetime import datetime, timedelta
-    from typing import Optional, List
-    from pydantic import BaseModel
+# ========== AUTH ENDPOINTS ==========
+# Store pending auth codes (in-memory, persistent since this runs continuously)
+import time
+import bcrypt
+import json
+import secrets
+import jwt
+from datetime import datetime, timedelta
+from typing import Optional, List
+from pydantic import BaseModel
 
-    class AuthConfirm(BaseModel):
-        code: str
-        telegramId: int
-        username: str
-        token: str  # The full token to return to the web
+class AuthConfirm(BaseModel):
+    code: str
+    telegramId: int
+    username: str
+    token: str  # The full token to return to the web
 
 class RegisterRequest(BaseModel):
     email: str
