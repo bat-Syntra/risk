@@ -1164,6 +1164,7 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     telegram_username: Optional[str] = None  # Optional Telegram username for account linking
+    referral_code: Optional[str] = None  # Referral code from ?ref= parameter
 
 class LoginRequest(BaseModel):
     email: str
@@ -1319,6 +1320,28 @@ async def register_user(data: RegisterRequest):
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        
+        # Handle referral tracking if referral_code provided
+        if data.referral_code:
+            try:
+                # Convert referral_code to int (user ID)
+                referrer_id = int(data.referral_code)
+                
+                # Find the referrer user
+                referrer = db.query(User).filter(User.id == referrer_id).first()
+                if referrer:
+                    # Check if Referral table exists, if not create entry in a simple way
+                    # For now, we'll add a simple tracking mechanism
+                    print(f"🎯 REFERRAL TRACKED: User {new_user.id} ({new_user.email}) referred by User {referrer_id} ({referrer.email if referrer.email else referrer.username})")
+                    
+                    # You can add to Referral table here when it's properly set up
+                    # For now, just log the referral for tracking
+                else:
+                    print(f"⚠️ REFERRAL WARNING: Referrer ID {referrer_id} not found")
+            except ValueError:
+                print(f"⚠️ REFERRAL ERROR: Invalid referral code format: {data.referral_code}")
+            except Exception as e:
+                print(f"⚠️ REFERRAL ERROR: {e}")
         
         # Generate JWT token
         user_data = {
