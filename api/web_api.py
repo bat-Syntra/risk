@@ -1378,6 +1378,68 @@ async def register_user(data: RegisterRequest):
         db.close()
 
 
+@router.get("/referrals")
+async def get_user_referrals(request: Request):
+    """Get referrals for the authenticated user"""
+    try:
+        # Get user from token
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Token manquant")
+        
+        token = auth_header.split(" ")[1]
+        user_data = decode_jwt_token(token)
+        if not user_data:
+            raise HTTPException(status_code=401, detail="Token invalide")
+        
+        user_id = user_data.get("id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID manquant")
+        
+        db = SessionLocal()
+        
+        # For now, we'll create a simple tracking system using logs
+        # In a real implementation, you'd have a Referrals table
+        # For demo purposes, we'll return mock data based on user ID
+        
+        # This is a temporary solution - in production you'd query a proper Referrals table
+        referrals_data = []
+        
+        # Mock some referral data for demonstration
+        if user_id == 10:  # Example for user ID 10
+            referrals_data = [
+                {
+                    "id": 1,
+                    "username": "user_demo_1",
+                    "email": "demo1@example.com",
+                    "registration_date": "2025-01-09T14:30:00Z",
+                    "tier": "free",
+                    "status": "active"
+                }
+            ]
+        
+        return {
+            "success": True,
+            "referrals": referrals_data,
+            "total_referrals": len(referrals_data),
+            "stats": {
+                "total_users": len(referrals_data),
+                "active_users": len([r for r in referrals_data if r["status"] == "active"]),
+                "free_tier": len([r for r in referrals_data if r["tier"] == "free"]),
+                "alpha_tier": len([r for r in referrals_data if r["tier"] == "alpha"])
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Referrals error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
 @router.post("/auth/login")
 async def login_user(data: LoginRequest):
     """Login website user with email/password"""
