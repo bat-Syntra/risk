@@ -1406,17 +1406,27 @@ async def get_user_referrals(request: Request):
         referrals_data = []
         
         # Mock some referral data for demonstration
-        if user_id == 10:  # Example for user ID 10
-            referrals_data = [
-                {
-                    "id": 1,
-                    "username": "user_demo_1",
-                    "email": "demo1@example.com",
-                    "registration_date": "2025-01-09T14:30:00Z",
-                    "tier": "free",
-                    "status": "active"
-                }
-            ]
+        # Add demo data for any user to test the dashboard
+        referrals_data = [
+            {
+                "id": 1,
+                "username": "demo_user_1",
+                "email": "demo1@example.com",
+                "registration_date": "2025-01-09T14:30:00Z",
+                "tier": "free",
+                "status": "active"
+            },
+            {
+                "id": 2,
+                "username": "demo_user_2", 
+                "email": "demo2@example.com",
+                "registration_date": "2025-01-09T15:15:00Z",
+                "tier": "free",
+                "status": "active"
+            }
+        ]
+        
+        print(f"🎯 REFERRALS API: User {user_id} requesting referrals, returning {len(referrals_data)} items")
         
         return {
             "success": True,
