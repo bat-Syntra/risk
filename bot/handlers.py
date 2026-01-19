@@ -176,19 +176,7 @@ async def start_command(message: types.Message, state: FSMContext):
             
             # Create bonus tracking ONLY for FREE users (eligible for 2 days)
             # PREMIUM/LIFETIME users should NOT get bonus
-            if user.tier == TierLevel.FREE:
-                try:
-                    db.execute(text("""
-                        INSERT INTO bonus_tracking 
-                        (telegram_id, started_at, bonus_eligible, ever_had_bonus)
-                        VALUES (:tid, :now, 1, 0)
-                    """), {
-                        'tid': user_tg.id,
-                        'now': datetime.now()
-                    })
-                    db.commit()
-                except Exception as e:
-                    logger.error(f"Error creating bonus_tracking for {user_tg.id}: {e}")
+            # Bonus tracking removed - skip bonus system
             
             # If started with referral payload, apply it now (after user exists)
             if message.text and len(message.text.split()) > 1:
@@ -370,15 +358,8 @@ async def start_command(message: types.Message, state: FSMContext):
             # Get user's actual usage today
             today_used = user.alerts_today if user.last_alert_date == date.today() else 0
             
-            # Check if user has active bonus
-            bonus_result = db.execute(text("""
-                SELECT bonus_activated_at, bonus_expires_at, bonus_redeemed
-                FROM bonus_tracking
-                WHERE telegram_id = :tid
-                    AND bonus_activated_at IS NOT NULL
-                    AND bonus_redeemed = 0
-                    AND bonus_expires_at > :now
-            """), {'tid': user_tg.id, 'now': datetime.now()}).first()
+            # Skip bonus check - removed bonus system
+            bonus_result = None
             
             bonus_line = ""
             if bonus_result:
@@ -1497,15 +1478,8 @@ async def callback_show_tiers(callback: types.CallbackQuery):
             return
         lang = user.language or "en"
         
-        # Check for active bonus
-        bonus_result = db.execute(text("""
-            SELECT bonus_activated_at, bonus_expires_at, bonus_redeemed, bonus_amount
-            FROM bonus_tracking
-            WHERE telegram_id = :tid
-                AND bonus_activated_at IS NOT NULL
-                AND bonus_redeemed = 0
-                AND bonus_expires_at > :now
-        """), {'tid': callback.from_user.id, 'now': datetime.now()}).first()
+        # Skip bonus check - removed bonus system
+        bonus_result = None
         
         has_active_bonus = bonus_result is not None
         price_display = "200 CAD/mois" if lang == "fr" else "200 CAD/month"
@@ -2284,15 +2258,8 @@ async def callback_buy_premium(callback: types.CallbackQuery):
             base_price = 200
         else:
             # Normal flow
-            # Check if user has active bonus
-            bonus_result = db.execute(text("""
-                SELECT bonus_activated_at, bonus_expires_at, bonus_redeemed, bonus_amount
-                FROM bonus_tracking
-                WHERE telegram_id = :tid
-                    AND bonus_activated_at IS NOT NULL
-                    AND bonus_redeemed = 0
-                    AND bonus_expires_at > :now
-            """), {'tid': callback.from_user.id, 'now': datetime.now()}).first()
+            # Skip bonus check - removed bonus system
+            bonus_result = None
             
             has_active_bonus = bonus_result is not None
             price = base_price
