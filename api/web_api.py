@@ -1434,7 +1434,12 @@ async def get_user_referrals(request: Request):
         if not user_data:
             raise HTTPException(status_code=401, detail="Token invalide")
         
-        user_id = str(user_data.get("id"))
+        # Handle different token formats (website vs telegram)
+        user_id = user_data.get("id") or user_data.get("telegramId")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Token invalide - pas d'ID utilisateur")
+        
+        user_id = str(user_id)
         print(f"🔑 AUTH DEBUG: Using real user_id from token: {user_id}")
         
         db = SessionLocal()
