@@ -1820,7 +1820,9 @@ async def get_referral_stats(telegram_id: int):
             "activeDirects": active_directs,
             "totalEarnings": round(total_earnings, 2),
             "monthlyRecurring": round(monthly_recurring, 2),
+            "referralCode": referral_code,
             "referralLink": f"https://t.me/risk0_bot?start=ref_{referral_code}",
+            "websiteLink": f"https://smartrisk0.xyz/register?ref={referral_code}",
             "isAlpha": is_alpha,
             "referrals": referrals_list
         }
