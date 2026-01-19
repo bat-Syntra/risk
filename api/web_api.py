@@ -1463,7 +1463,9 @@ async def get_user_referrals(request: Request):
             print(f"📊 REFERRALS API: User {user_id} has no referrals yet")
         else:
             print(f"🎯 REFERRALS API: User {user_id} has {len(api_referrals)} REAL referrals")
-            print(f"💰 COMMISSION: {commission_info['tier']} - {commission_info['rate']}%")
+        
+        # Always show commission info (even with 0 referrals)
+        print(f"💰 COMMISSION: {commission_info['tier']} - {commission_info['rate']}%")
         
         referrals_data = api_referrals
         
