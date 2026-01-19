@@ -1359,15 +1359,17 @@ async def register_user(data: RegisterRequest):
                         }
                         
                         # Save to persistent storage (file-based until proper database)
-                        if referrer_id not in referrals_storage:
-                            referrals_storage[referrer_id] = []
-                        referrals_storage[referrer_id].append(referral_data)
+                        # Convert referrer_id to string for consistent storage keys
+                        referrer_key = str(referrer_id)
+                        if referrer_key not in referrals_storage:
+                            referrals_storage[referrer_key] = []
+                        referrals_storage[referrer_key].append(referral_data)
                         
                         # Save to file for persistence across server restarts
                         save_referrals_to_file()
                         
                         print(f"💾 REFERRAL SAVED: {referral_data}")
-                        print(f"📊 REFERRALS STORAGE: User {referrer_id} now has {len(referrals_storage[referrer_id])} referrals")
+                        print(f"📊 REFERRALS STORAGE: User {referrer_id} now has {len(referrals_storage[referrer_key])} referrals")
                         print(f"🔄 REFERRALS PERSISTED to file storage")
                         
                     except Exception as save_error:
