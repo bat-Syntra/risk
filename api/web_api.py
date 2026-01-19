@@ -1454,8 +1454,11 @@ async def get_user_referrals(request: Request):
         
         # Calculate commission info with manual override check
         referral_count = len(api_referrals)
-        # TODO: Get user's actual alpha status from database
-        is_alpha = False  # Placeholder
+        
+        # Get user's actual alpha status from database
+        user_record = db.query(User).filter(User.id == int(user_id)).first()
+        is_alpha = user_record and user_record.tier.value == 'alpha' if user_record else False
+        
         commission_info = calculate_commission_rate(referral_count, is_alpha, user_id, db)
         
         # Return only real referral data - no demo fallback
