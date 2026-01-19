@@ -1419,14 +1419,21 @@ async def register_user(data: RegisterRequest):
 async def get_user_referrals(request: Request):
     """Get referrals for the authenticated user"""
     try:
-        # TEMPORARY: Skip auth to show existing referral data
-        # Get user from token (disabled for now)
+        # Get user from token
         auth_header = request.headers.get("Authorization")
         print(f"🔑 AUTH DEBUG: Authorization header: {auth_header}")
         
-        # TEMPORARY: Use hardcoded user ID to show existing referral
-        user_id = "10"  # User 10 has 1 referral in storage
-        print(f"🔑 AUTH DEBUG: Using hardcoded user_id: {user_id}")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Token manquant")
+        
+        token = auth_header.replace("Bearer ", "")
+        user_data = get_user_from_token(token)
+        
+        if not user_data:
+            raise HTTPException(status_code=401, detail="Token invalide")
+        
+        user_id = str(user_data.get("id"))
+        print(f"🔑 AUTH DEBUG: Using real user_id from token: {user_id}")
         
         db = SessionLocal()
         
