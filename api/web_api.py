@@ -1444,11 +1444,18 @@ async def get_user_referrals(request: Request):
                 "status": referral.get("status")
             })
         
+        # Calculate commission info with manual override check
+        referral_count = len(api_referrals)
+        # TODO: Get user's actual alpha status from database
+        is_alpha = False  # Placeholder
+        commission_info = calculate_commission_rate(referral_count, is_alpha, user_id, db)
+        
         # Return only real referral data - no demo fallback
         if not api_referrals:
             print(f"📊 REFERRALS API: User {user_id} has no referrals yet")
         else:
             print(f"🎯 REFERRALS API: User {user_id} has {len(api_referrals)} REAL referrals")
+            print(f"💰 COMMISSION: {commission_info['tier']} - {commission_info['rate']}%")
         
         referrals_data = api_referrals
         
@@ -1456,11 +1463,11 @@ async def get_user_referrals(request: Request):
             "success": True,
             "referrals": referrals_data,
             "total_referrals": len(referrals_data),
+            "commission": commission_info,
             "stats": {
-                "total_users": len(referrals_data),
-                "active_users": len([r for r in referrals_data if r["status"] == "active"]),
-                "free_tier": len([r for r in referrals_data if r["tier"] == "free"]),
-                "alpha_tier": len([r for r in referrals_data if r["tier"] == "alpha"])
+                "active_referrals": len([r for r in referrals_data if r.get("status") == "active"]),
+                "total_earnings": 0.0,  # TODO: Calculate based on referral activity
+                "monthly_earnings": 0.0  # TODO: Calculate based on referral activity
             }
         }
         
@@ -1960,6 +1967,64 @@ def decode_jwt_token(token: str):
     except Exception as e:
         print(f"🔑 JWT ERROR: Decode error - {e}")
         return None
+
+# Commission Tiers System
+def calculate_commission_rate(referral_count: int, is_alpha: bool = False, user_id: str = None, db = None) -> dict:
+    """Calculate commission rate based on referral count and tier + manual overrides"""
+    
+    # Check for manual override first (admin set %)
+    if user_id and db:
+        try:
+            override = db.query(ReferralSettings).filter(ReferralSettings.referrer_id == int(user_id)).first()
+            if override and override.override_rate is not None:
+                manual_rate = float(override.override_rate) * 100  # Convert to percentage
+                return {
+                    "rate": manual_rate,
+                    "tier": f"🔧 Manual Override",
+                    "is_alpha": is_alpha,
+                    "referral_count": referral_count,
+                    "next_milestone": None,
+                    "is_manual_override": True
+                }
+        except Exception as e:
+            print(f"💰 OVERRIDE CHECK ERROR: {e}")
+    
+    # Base automatic rates
+    if referral_count >= 30:
+        rate = 40.0
+        tier = "🏆 Champion"
+        next_milestone = None
+    elif referral_count >= 20:
+        rate = 30.0
+        tier = "🌟 Elite"
+        next_milestone = {"count": 30, "rate": 40.0}
+    elif referral_count >= 10:
+        rate = 25.0
+        tier = "💎 Diamond"
+        next_milestone = {"count": 20, "rate": 30.0}
+    elif referral_count >= 5:
+        rate = 15.0
+        tier = "⭐ Star"
+        # Auto-upgrade to Alpha at 5 referrals
+        is_alpha = True
+        next_milestone = {"count": 10, "rate": 25.0}
+    elif is_alpha:
+        rate = 12.5
+        tier = "👑 Alpha"
+        next_milestone = {"count": 5, "rate": 15.0}
+    else:
+        rate = 10.0
+        tier = "🎯 Base"
+        next_milestone = {"count": 5, "rate": 15.0}
+    
+    return {
+        "rate": rate,
+        "tier": tier,
+        "is_alpha": is_alpha,
+        "referral_count": referral_count,
+        "next_milestone": next_milestone,
+        "is_manual_override": False
+    }
 
 # In-memory storage for OTP codes (in production, use Redis or database)
 telegram_otp_storage = {}
