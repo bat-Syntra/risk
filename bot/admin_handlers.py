@@ -1412,7 +1412,7 @@ async def callback_admin_user_detail(callback: types.CallbackQuery):
             kb = [
                 [InlineKeyboardButton(text="💎 Grant 30j", callback_data=f"admin_grant_{u.telegram_id}"), InlineKeyboardButton(text="♾️ Lifetime Premium", callback_data=f"admin_lifetime_{u.telegram_id}")],
                 [InlineKeyboardButton(text="🎁 Free Access", callback_data=f"admin_freeaccess_{u.telegram_id}"), InlineKeyboardButton(text="⬇️ Revoke FREE", callback_data=f"admin_revoke_{u.telegram_id}")],
-                [InlineKeyboardButton(text="✏️ Affiliate %", callback_data=f"admin_setaff_{u.telegram_id}")],
+                [InlineKeyboardButton(text="✏️ Affiliate %", callback_data=f"admin_setaff_{u.id}")],
                 [InlineKeyboardButton(text=("🚫 Ban" if not u.is_banned else "✅ Unban"), callback_data=f"admin_toggleban_{u.telegram_id}")],
                 [InlineKeyboardButton(text=("🔕 Disable Notif" if u.notifications_enabled else "🔔 Enable Notif"), callback_data=f"admin_togglenotif_{u.telegram_id}")],
                 [InlineKeyboardButton(text="📊 Stats", callback_data=f"admin_user_stats_{u.telegram_id}"), InlineKeyboardButton(text="📜 My Bets", callback_data=f"admin_user_mybets_{u.telegram_id}_1")],
