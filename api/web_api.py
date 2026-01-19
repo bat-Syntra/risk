@@ -5,6 +5,7 @@ These endpoints are called by the web dashboard (risk0-web)
 import json
 import asyncio
 import re
+import base64
 from datetime import datetime, timedelta, date
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from pydantic import BaseModel
