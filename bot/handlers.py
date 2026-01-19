@@ -2244,30 +2244,13 @@ async def callback_buy_premium(callback: types.CallbackQuery):
             return
         
         lang = user.language or "en"
-        base_price = TierManager.get_price(CoreTierLevel.PREMIUM)
+        # 🧪 TEST MODE: Set price to $10 for ALL users for referral testing
+        base_price = 10.0  # Changed from 200 to 10 for testing
         
-        # 🧪 TEST MODE: Set price to $3 for testing account
-        # 2nd account for payment testing
-        TEST_ACCOUNT_ID = 8004919557  # Test account - $3 price
-        
-        if callback.from_user.id == TEST_ACCOUNT_ID and TEST_ACCOUNT_ID != 0:
-            # TEST MODE: $10 for testing payment system (min amount for most cryptos)
-            price = 10.0
-            bonus_amount = 190  # Show as discount from $200 to $10
-            has_active_bonus = True
-            base_price = 200
-        else:
-            # Normal flow
-            # Skip bonus check - removed bonus system
-            bonus_result = None
-            
-            has_active_bonus = bonus_result is not None
-            price = base_price
-            bonus_amount = 0
-            
-            if has_active_bonus:
-                bonus_amount = bonus_result.bonus_amount or 50
-                price = base_price - bonus_amount
+        # TEST MODE: $10 for testing payment system (min amount for most cryptos)  
+        price = 10.0
+        bonus_amount = 0  # No discount needed since base is already $10
+        has_active_bonus = False
         
         if lang == "fr":
             if has_active_bonus:
