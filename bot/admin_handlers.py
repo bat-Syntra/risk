@@ -1401,7 +1401,7 @@ async def callback_admin_user_detail(callback: types.CallbackQuery):
         # Get email from website users table if exists
         email_info = "N/A"
         try:
-            from models.website_user import WebsiteUser
+            from models import WebsiteUser
             website_user = db.query(WebsiteUser).filter(WebsiteUser.telegram_id == user_id).first()
             if website_user and website_user.email:
                 email_info = website_user.email
