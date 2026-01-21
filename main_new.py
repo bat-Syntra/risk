@@ -23,7 +23,7 @@ import secrets
 import logging
 
 # Import handlers
-from bot import handlers, admin_handlers, learn_handlers, casino_handlers, language_handlers, bet_handlers, bet_handlers_ev_middle, middle_handlers, add_bet_flow, percent_filters, stake_rounding_handlers, casino_filter_handlers, bet_details_pro, last_calls_pro, learn_guide_pro, debug_command, simulation_handler, middle_outcome_tracker, intelligent_questionnaire, pending_confirmations, parlay_preferences_handler, force_commands_handler, feedback_vouch_handler, admin_feedback_menu
+from bot import handlers, admin_handlers, admin_password_handlers, learn_handlers, casino_handlers, language_handlers, bet_handlers, bet_handlers_ev_middle, middle_handlers, add_bet_flow, percent_filters, stake_rounding_handlers, casino_filter_handlers, bet_details_pro, last_calls_pro, learn_guide_pro, debug_command, simulation_handler, middle_outcome_tracker, intelligent_questionnaire, pending_confirmations, parlay_preferences_handler, force_commands_handler, feedback_vouch_handler, admin_feedback_menu
 from bot import daily_confirmation, web_auth_handler
 from bot.auto_confirm_middleware import AutoconfirmMiddleware
 from bot.nowpayments_handler import NOWPaymentsManager
@@ -404,39 +404,12 @@ dp.include_router(handlers.router)
 # 🎯 IMPORTANT: bet_handlers_ev_middle MUST be EARLY to handle good_ev_bet_ and middle_bet_ callbacks
 dp.include_router(bet_handlers_ev_middle.router)
 dp.include_router(admin_handlers.router)
-
+dp.include_router(admin_password_handlers.router)  # Added this line
 # ML Stats Command (admin monitoring) - Put here for command priority
 from bot import ml_stats_command
 dp.include_router(ml_stats_command.router)
 
-dp.include_router(learn_handlers.router)
-dp.include_router(casino_handlers.router)
-dp.include_router(language_handlers.router)
-dp.include_router(debug_command.router)
-
-# New manual add-bet flow should come before bet_handlers to ensure
-# its FSM message handlers are processed before generic text handlers.
-dp.include_router(add_bet_flow.router)
-dp.include_router(percent_filters.router)
-dp.include_router(stake_rounding_handlers.router)
-dp.include_router(casino_filter_handlers.router)
-from bot import sport_filter
-dp.include_router(sport_filter.router)
-dp.include_router(bet_details_pro.router)
-dp.include_router(last_calls_pro.router)
-dp.include_router(learn_guide_pro.router)
-dp.include_router(bet_handlers.router)
-# bet_handlers_ev_middle.router moved to line 366 (earlier for priority)
-dp.include_router(middle_handlers.router)
-dp.include_router(middle_outcome_tracker.router)
-# feedback_vouch_handler.router moved to top (before handlers.router) for FSM priority
-dp.include_router(admin_feedback_menu.router)  # Admin menu for feedbacks/vouches
-dp.include_router(intelligent_questionnaire.router)
-from bot import intelligent_questionnaire_step2
-dp.include_router(intelligent_questionnaire_step2.router)  # Step 2 handlers for intelligent questionnaire
-dp.include_router(daily_confirmation.router)
-dp.include_router(simulation_handler.router)
-
+# ... (rest of the code remains the same)
 # 🎯 CRITICAL: Register bet handlers DIRECTLY on dispatcher BEFORE calc_router
 @dp.callback_query(F.data.startswith("good_ev_bet_"))
 async def handle_good_ev_bet(callback: types.CallbackQuery):

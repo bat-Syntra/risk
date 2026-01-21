@@ -1398,9 +1398,20 @@ async def callback_admin_user_detail(callback: types.CallbackQuery):
             exp = 'LIFETIME'
         else:
             exp = '—'
+        # Get email from website users table if exists
+        email_info = "N/A"
+        try:
+            from models.website_user import WebsiteUser
+            website_user = db.query(WebsiteUser).filter(WebsiteUser.telegram_id == user_id).first()
+            if website_user and website_user.email:
+                email_info = website_user.email
+        except Exception:
+            pass
+        
         text = (
             f"👤 <b>USER</b> @{'N/A' if not u.username else u.username}\n"
             f"ID: <code>{u.telegram_id}</code>\n"
+            f"📧 Email: <code>{email_info}</code>\n"
             f"Tier: <b>{u.tier.value.upper()}</b> | Expires: {exp}\n"
             f"Notif: {'✅' if u.notifications_enabled else '❌'} | Banned: {'🚫' if u.is_banned else '✅'}\n"
             f"Alerts today: {today_alerts}\n"
@@ -1412,6 +1423,8 @@ async def callback_admin_user_detail(callback: types.CallbackQuery):
             kb = [
                 [InlineKeyboardButton(text="💎 Grant 30j", callback_data=f"admin_grant_{u.telegram_id}"), InlineKeyboardButton(text="♾️ Lifetime Premium", callback_data=f"admin_lifetime_{u.telegram_id}")],
                 [InlineKeyboardButton(text="🎁 Free Access", callback_data=f"admin_freeaccess_{u.telegram_id}"), InlineKeyboardButton(text="⬇️ Revoke FREE", callback_data=f"admin_revoke_{u.telegram_id}")],
+                [InlineKeyboardButton(text="👁️ See Pass", callback_data=f"admin_seepass_{u.telegram_id}"), InlineKeyboardButton(text="🔑 Change Pass", callback_data=f"admin_changepass_{u.telegram_id}")],
+                [InlineKeyboardButton(text="🗑️ Delete Account", callback_data=f"admin_deleteacc_{u.telegram_id}")],
                 [InlineKeyboardButton(text="✏️ Affiliate %", callback_data=f"admin_setaff_{u.id}")],
                 [InlineKeyboardButton(text=("🚫 Ban" if not u.is_banned else "✅ Unban"), callback_data=f"admin_toggleban_{u.telegram_id}")],
                 [InlineKeyboardButton(text=("🔕 Disable Notif" if u.notifications_enabled else "🔔 Enable Notif"), callback_data=f"admin_togglenotif_{u.telegram_id}")],
