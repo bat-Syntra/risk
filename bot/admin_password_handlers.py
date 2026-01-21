@@ -248,7 +248,11 @@ async def callback_admin_delete_account_confirm(callback: types.CallbackQuery):
         )
         
         kb = [[InlineKeyboardButton(text="◀️ Back to Users", callback_data="admin_users_1")]]
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb), parse_mode="HTML")
+        try:
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb), parse_mode="HTML")
+        except Exception as e:
+            # If message can't be edited (same content), send new message
+            await callback.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb), parse_mode="HTML")
         
     except Exception as e:
         await callback.message.edit_text(f"❌ Error deleting account: {str(e)}")
