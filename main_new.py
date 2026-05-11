@@ -402,6 +402,7 @@ dp.include_router(admin_request_handlers.router)  # Admin request handlers (free
 dp.include_router(feedback_vouch_handler.router)  # MUST be before handlers for FSM to work!
 dp.include_router(handlers.router)
 dp.include_router(learn_guide_pro.router)  # Guide Pro handler
+dp.include_router(bet_handlers.router)  # Bet tracking + my_stats
 # 🎯 IMPORTANT: bet_handlers_ev_middle MUST be EARLY to handle good_ev_bet_ and middle_bet_ callbacks
 dp.include_router(bet_handlers_ev_middle.router)
 dp.include_router(admin_handlers.router)
