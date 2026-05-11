@@ -3,7 +3,7 @@ Bet model for tracking user bet history
 """
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, Text, JSON, ForeignKey, Date, UniqueConstraint
+    Column, Integer, BigInteger, String, Float, Boolean, DateTime, Text, JSON, ForeignKey, Date, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -20,7 +20,7 @@ class Bet(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # User reference
-    user_id = Column(Integer, ForeignKey('users.telegram_id'), index=True, nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.telegram_id'), index=True, nullable=False)
     
     # Event info
     event_id = Column(String(100), index=True)  # From source bot
@@ -127,7 +127,7 @@ class UserBet(Base):
     __tablename__ = "user_bets"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.telegram_id'), index=True, nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.telegram_id'), index=True, nullable=False)
     drop_event_id = Column(Integer, ForeignKey('drop_events.id'), index=True)  # Link to drop_events table
     event_hash = Column(String(100), index=True)  # Hash of the call for deduplication
     bet_type = Column(String(20), default='arbitrage', index=True)  # arbitrage, good_ev, middle
@@ -156,7 +156,7 @@ class DailyStats(Base):
     __table_args__ = (UniqueConstraint('user_id', 'date', name='_user_date_uc'),)
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.telegram_id'), index=True, nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.telegram_id'), index=True, nullable=False)
     date = Column(Date, nullable=False, index=True)
     total_bets = Column(Integer, default=0)
     total_staked = Column(Float, default=0.0)
@@ -182,7 +182,7 @@ class ConversationState(Base):
     """
     __tablename__ = "conversation_states"
     
-    user_id = Column(Integer, ForeignKey('users.telegram_id'), primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey('users.telegram_id'), primary_key=True, index=True)
     state = Column(String(50))  # awaiting_bet_count, awaiting_stakes, awaiting_profit
     context = Column(JSON)  # Temporary data for the conversation
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

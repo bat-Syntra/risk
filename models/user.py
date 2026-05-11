@@ -4,7 +4,7 @@ User model with tier system
 import enum
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Float, DateTime, Date, Enum
+    Column, Integer, BigInteger, String, Boolean, Float, DateTime, Date, Enum
 )
 from sqlalchemy.sql import func
 from database import Base
@@ -26,7 +26,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Telegram info
-    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String(100))
     first_name = Column(String(100))
     last_name = Column(String(100))
@@ -59,7 +59,7 @@ class User(Base):
     
     # Referral
     referral_code = Column(String(20), unique=True, index=True)
-    referred_by = Column(Integer, index=True)  # telegram_id of referrer
+    referred_by = Column(BigInteger, index=True)  # telegram_id of referrer
     
     # Stats
     total_bets = Column(Integer, default=0)

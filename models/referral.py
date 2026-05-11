@@ -3,7 +3,7 @@ Referral model for tracking referrals and commissions
 """
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey
+    Column, Integer, BigInteger, String, Float, Boolean, DateTime, ForeignKey
 )
 from sqlalchemy.sql import func
 from database import Base
@@ -19,8 +19,8 @@ class Referral(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Referral relationship
-    referrer_id = Column(Integer, index=True, nullable=False)  # telegram_id who referred
-    referee_id = Column(Integer, index=True, nullable=False)   # telegram_id who was referred
+    referrer_id = Column(BigInteger, index=True, nullable=False)  # telegram_id who referred
+    referee_id = Column(BigInteger, index=True, nullable=False)   # telegram_id who was referred
     
     # Commission tracking
     commission_rate = Column(Float, default=0.20)  # 20% default
@@ -71,9 +71,9 @@ class ReferralTier2(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Tier 2 relationship
-    original_referrer_id = Column(Integer, index=True, nullable=False)  # Original referrer
-    tier1_referrer_id = Column(Integer, index=True, nullable=False)     # Direct referrer
-    referee_id = Column(Integer, index=True, nullable=False)            # End user
+    original_referrer_id = Column(BigInteger, index=True, nullable=False)  # Original referrer
+    tier1_referrer_id = Column(BigInteger, index=True, nullable=False)     # Direct referrer
+    referee_id = Column(BigInteger, index=True, nullable=False)            # End user
     
     # Commission (typically 10% for tier 2)
     commission_rate = Column(Float, default=0.10)
@@ -106,6 +106,6 @@ class ReferralSettings(Base):
     __tablename__ = "referral_settings"
     
     id = Column(Integer, primary_key=True, index=True)
-    referrer_id = Column(Integer, unique=True, index=True, nullable=False)  # telegram_id of referrer
+    referrer_id = Column(BigInteger, unique=True, index=True, nullable=False)  # telegram_id of referrer
     override_rate = Column(Float)  # Optional manual override for tier-1 commission (0.20..0.60)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
